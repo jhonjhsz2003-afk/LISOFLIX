@@ -1,0 +1,6 @@
+Coloque suas imagens .png, .jpg, .webp ou GIFs .gif aqui.
+Depois liste os arquivos em manifest.json, por exemplo:
+{"avatars":["gato.gif","estrela.png","heroi.webp"]}
+Os GIFs animados continuam animados. O navegador carregara os avatares sob demanda.
+Imagens muito pesadas consomem trafego: preferir WebP e GIFs otimizados.
+Nenhum arquivo de avatar vem pronto. O usuario escolhe na galeria de perfis.
