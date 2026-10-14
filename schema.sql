@@ -64,3 +64,14 @@ CREATE TABLE IF NOT EXISTS login_guards (
  attempts INTEGER NOT NULL DEFAULT 0,
  blocked_until INTEGER NOT NULL DEFAULT 0
 );
+
+-- Interações da comunidade: votos isolados por perfil e título, aplicáveis sem apagar dados antigos.
+CREATE TABLE IF NOT EXISTS reactions (
+ profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+ media_type TEXT NOT NULL CHECK(media_type IN ('movie','tv')),
+ media_id INTEGER NOT NULL,
+ vote INTEGER NOT NULL CHECK(vote IN (-1,1)),
+ created_at TEXT NOT NULL DEFAULT (datetime('now')),
+ PRIMARY KEY(profile_id,media_type,media_id)
+);
+CREATE INDEX IF NOT EXISTS reactions_media ON reactions(media_type,media_id);

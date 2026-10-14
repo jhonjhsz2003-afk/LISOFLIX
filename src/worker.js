@@ -4,21 +4,35 @@ const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const sections = {
-  trending: ['/trending/all/week', {}],
-  movies: ['/discover/movie', {sort_by:'popularity.desc', watch_region:'BR', include_adult:'false'}],
-  series: ['/discover/tv', {sort_by:'popularity.desc', include_adult:'false'}],
-  anime: ['/discover/tv', {with_genres:'16', with_original_language:'ja', sort_by:'popularity.desc', include_adult:'false'}],
-  cartoons: ['/discover/tv', {with_genres:'16', without_original_language:'ja', sort_by:'popularity.desc', include_adult:'false'}],
+  trending: ['/trending/movie/week', {}],
+  trendingseries: ['/trending/tv/week', {}],
+  movies: ['/discover/movie', {without_genres:'16',sort_by:'popularity.desc',include_adult:'false'}],
+  series: ['/discover/tv', {without_genres:'16',sort_by:'popularity.desc',include_adult:'false'}],
+  anime: ['/discover/tv', {with_genres:'16',with_original_language:'ja',sort_by:'popularity.desc',include_adult:'false'}],
+  animefilms: ['/discover/movie', {with_genres:'16',with_original_language:'ja',sort_by:'popularity.desc',include_adult:'false'}],
+  cartoons: ['/discover/tv', {with_genres:'16',without_original_language:'ja',sort_by:'popularity.desc',include_adult:'false'}],
+  cartoonfilms: ['/discover/movie', {with_genres:'16',without_original_language:'ja',sort_by:'popularity.desc',include_adult:'false'}],
   upcoming: ['/movie/upcoming', {region:'BR'}],
   airing: ['/tv/on_the_air', {}],
-  topmovies: ['/movie/top_rated', {}],
-  topseries: ['/tv/top_rated', {}],
-  action: ['/discover/movie', {with_genres:'28', sort_by:'popularity.desc'}],
-  romance: ['/discover/movie', {with_genres:'10749', sort_by:'popularity.desc'}],
-  scifi: ['/discover/movie', {with_genres:'878', sort_by:'popularity.desc'}],
-  family: ['/discover/movie', {with_genres:'10751', sort_by:'popularity.desc'}],
-  horror: ['/discover/movie', {with_genres:'27', sort_by:'popularity.desc'}],
+  topmovies: ['/discover/movie', {without_genres:'16',sort_by:'vote_average.desc','vote_count.gte':350,include_adult:'false'}],
+  topseries: ['/discover/tv', {without_genres:'16',sort_by:'vote_average.desc','vote_count.gte':200,include_adult:'false'}],
+  action: ['/discover/movie', {with_genres:'28',sort_by:'popularity.desc'}],
+  romance: ['/discover/movie', {with_genres:'10749',sort_by:'popularity.desc'}],
+  scifi: ['/discover/movie', {with_genres:'878',sort_by:'popularity.desc'}],
+  family: ['/discover/movie', {with_genres:'10751',without_genres:'16',sort_by:'popularity.desc'}],
+  horror: ['/discover/movie', {with_genres:'27',sort_by:'popularity.desc'}],
 };
+const movieSections = new Set(['trending','movies','animefilms','cartoonfilms','upcoming','topmovies','action','romance','scifi','family','horror']);
+function sectionMedia(section) { return movieSections.has(section) ? 'movie' : 'tv'; }
+function isAnimation(row) { return (row.genre_ids || []).includes(16); }
+function matchesSection(section, row) {
+ const type = row.media_type || sectionMedia(section);
+ if (type !== sectionMedia(section)) return false;
+ if (['anime','animefilms'].includes(section)) return isAnimation(row) && row.original_language === 'ja';
+ if (['cartoons','cartoonfilms'].includes(section)) return isAnimation(row) && row.original_language !== 'ja';
+ if (['series','topseries','trendingseries','airing','movies','topmovies','trending','family'].includes(section)) return !isAnimation(row);
+ return true;
+}
 
 function json(data, status=200, headers={}) {
   return new Response(JSON.stringify(data), {status, headers: {
@@ -68,37 +82,64 @@ async function authResponse(env,req,userId,profileId=null) {
 }
 function safeMedia(type,id) {return ['movie','tv'].includes(type)&&Number.isSafeInteger(+id)&&+id>0&&+id<100000000;}
 function cleanSnapshot(o,type,id) {return JSON.stringify({id:+id,media_type:type,title:String(o?.title||o?.name||'').slice(0,120),name:String(o?.name||o?.title||'').slice(0,120),poster_path: /^\/[a-zA-Z0-9]+\.(jpg|png|webp)$/.test(o?.poster_path||'')?o.poster_path:null,backdrop_path:/^\/[a-zA-Z0-9]+\.(jpg|png|webp)$/.test(o?.backdrop_path||'')?o.backdrop_path:null,vote_average:Number(o?.vote_average)||0,overview:String(o?.overview||'').slice(0,700),genre_ids:Array.isArray(o?.genre_ids)?o.genre_ids.slice(0,10):[],first_air_date:String(o?.first_air_date||'').slice(0,10),release_date:String(o?.release_date||'').slice(0,10)});}
-async function tmdb(env,path,params={},cacheSeconds=900) {
- if(!tmdbReady(env)) throw Error('TMDB_NOT_CONFIGURED');
- const u=new URL(ORIGIN_TMDB+path);
- const q={language:'pt-BR',...params};for(const [k,v]of Object.entries(q))u.searchParams.set(k,String(v));
- // TMDB aceita a chave v3 (Secret TMDB_API_KEY) ou o token v4 (TMDB_BEARER_TOKEN).
- if(env.TMDB_API_KEY) u.searchParams.set('api_key',env.TMDB_API_KEY);
- const headers={Accept:'application/json'};
- if(!env.TMDB_API_KEY && env.TMDB_BEARER_TOKEN) headers.Authorization=`Bearer ${env.TMDB_BEARER_TOKEN}`;
- const r=await fetch(u.toString(),{headers,cf:{cacheTtl:cacheSeconds,cacheEverything:true}});
- if(!r.ok)throw Error(`TMDB respondeu ${r.status}`);
- return r.json();
+// Aceita tanto a API Key v3 quanto o API Read Access Token (Bearer).
+// Alguns usuarios colam o token Bearer por engano no Secret TMDB_API_KEY;
+// isso nao deve transformar um token em um parametro ?api_key invalido.
+function cleanCredential(value) {
+ let v=String(value??'').trim();
+ if ((v.startsWith('"')&&v.endsWith('"'))||(v.startsWith("'")&&v.endsWith("'"))) v=v.slice(1,-1).trim();
+ return v;
 }
-function tmdbReady(env) {return !!(env.TMDB_API_KEY||env.TMDB_BEARER_TOKEN);}
-function typeFromSection(sec) {return ['movies','upcoming','topmovies','action','romance','scifi','family','horror'].includes(sec)?'movie':'tv';}
+function tmdbCredentials(env) {
+ const out=[];
+ for(const [key,configuredAsBearer] of [['TMDB_BEARER_TOKEN',true],['TMDB_API_KEY',false]]) {
+  const raw=cleanCredential(env[key]);
+  if(!raw)continue;
+  const hasBearer=/^Bearer\s+/i.test(raw);
+  const value=hasBearer?raw.replace(/^Bearer\s+/i,'').trim():raw;
+  // A chave v3 normalmente possui 32 caracteres hexadecimais, enquanto
+  // o Read Access Token e um JWT (3 trechos separados por pontos).
+  const jwt=/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value);
+  const mode=configuredAsBearer||hasBearer||jwt?'bearer':'api_key';
+  // Nao use conteudos que poderiam inserir quebras em Authorization.
+  if(!value||value.length>4096||/[\r\n]/.test(value))continue;
+  if(!out.some(c=>c.mode===mode&&c.value===value))out.push({mode,value});
+ }
+ return out;
+}
+function tmdbReady(env) {return tmdbCredentials(env).length>0;}
+async function tmdb(env,path,params={},cacheSeconds=900) {
+ const creds=tmdbCredentials(env);
+ if(!creds.length)throw Error('TMDB_NOT_CONFIGURED');
+ const base=new URL(ORIGIN_TMDB+path);
+ const q={language:'pt-BR',...params};for(const [k,v]of Object.entries(q))base.searchParams.set(k,String(v));
+ let response;
+ for(let i=0;i<creds.length;i++){
+  const credential=creds[i], u=new URL(base);
+  const headers={Accept:'application/json'};
+  if(credential.mode==='api_key')u.searchParams.set('api_key',credential.value);
+  else headers.Authorization=`Bearer ${credential.value}`;
+  response=await fetch(u.toString(),{headers,cf:{cacheTtl:cacheSeconds,cacheEverything:true}});
+  // Se houver dois Secrets cadastrados, a segunda credencial pode funcionar.
+  if(response.status!==401||i===creds.length-1)break;
+ }
+ if(response.status===401)throw Error('TMDB_AUTH_401');
+ if(!response.ok)throw Error(`TMDB respondeu ${response.status}`);
+ return response.json();
+}
 function demoSection(sec,page=1) {
- let arr=DEMO;
- if(['movies','topmovies','upcoming','action','romance','scifi','family','horror'].includes(sec))arr=DEMO.filter(x=>x.media_type==='movie');
- if(['series','topseries','airing'].includes(sec))arr=DEMO.filter(x=>x.media_type==='tv');
- if(sec==='anime')arr=DEMO.filter(x=>x.media_type==='tv'&&x.genre_ids.includes(16));
- if(sec==='cartoons')arr=DEMO.filter(x=>x.media_type==='tv'&&x.genre_ids.includes(16));
- return {results: page===1?arr:[],page,total_pages:1,demo:true,updatedAt:new Date().toISOString()};
+ const results=DEMO.filter(x=>matchesSection(sec,x));
+ return {results:page===1?results:[],page,total_pages:1,demo:true,updatedAt:new Date().toISOString()};
 }
 async function catalog(env,sec,page=1,force=false) {
  if(!sections[sec])throw Error('Seção inválida');
  if(!tmdbReady(env))return demoSection(sec,page);
  if(!force&&env.DB){const cached=await env.DB.prepare('SELECT payload,expires_at FROM catalog_cache WHERE section=? AND page=?').bind(sec,page).first();if(cached?.expires_at>Date.now())return JSON.parse(cached.payload);}
- const [path,opts]=sections[sec];const payload=await tmdb(env,path,{...opts,page},600);
- const type=typeFromSection(sec);
- const results=(payload.results||[]).filter(x=>x.media_type!=='person'&&!x.adult&&!!(x.poster_path||x.backdrop_path)).map(x=>({...x,media_type:x.media_type||type}));
+ const [path,opts]=sections[sec];const payload=await tmdb(env,path,{...opts,page},180);
+ const type=sectionMedia(sec);
+ const results=(payload.results||[]).filter(x=>x.media_type!=='person'&&!x.adult&&!!(x.poster_path||x.backdrop_path)).map(x=>({...x,media_type:x.media_type||type})).filter(x=>matchesSection(sec,x));
  const data={results,page:payload.page,total_pages:payload.total_pages,demo:false,updatedAt:new Date().toISOString()};
- if(env.DB)await env.DB.prepare('INSERT INTO catalog_cache(section,page,payload,expires_at) VALUES (?,?,?,?) ON CONFLICT(section,page) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(sec,page,JSON.stringify(data),Date.now()+600000).run();
+ if(env.DB)await env.DB.prepare('INSERT INTO catalog_cache(section,page,payload,expires_at) VALUES (?,?,?,?) ON CONFLICT(section,page) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(sec,page,JSON.stringify(data),Date.now()+180000).run();
  return data;
 }
 function validatedAvatar(input) {return input===''||/^[a-zA-Z0-9_-]+\.(png|webp|jpe?g|gif)$/i.test(input||'') ? input : null;}
@@ -110,8 +151,25 @@ async function handle(req,env) {
   if(origin&&origin!==url.origin)return fail('Origem não autorizada.',403);
   if(!req.headers.get('Content-Type')?.startsWith('application/json'))return fail('Use application/json.',415);
  }
- if(path==='/api/config'&&method==='GET')return json({tmdb:!!tmdbReady(env),embeds:env.ENABLE_EXTERNAL_EMBEDS==='true',version:'1.0.0'});
- if(path==='/api/health'&&method==='GET')return json({status:'ok',database:!!env.DB,tmdb:!!tmdbReady(env),time:new Date().toISOString()});
+ if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:env.ENABLE_EXTERNAL_EMBEDS==='true',version:'1.2.1'});
+ if(path==='/api/tmdb/check'&&method==='GET'){
+  if(!tmdbReady(env))return json({configured:false,authorized:false,error:'Secret de catálogo não configurado.'},503);
+  try{
+   await tmdb(env,'/configuration',{},60);
+   return json({configured:true,authorized:true});
+  }catch(e){
+   if(e?.message==='TMDB_AUTH_401')return json({configured:true,authorized:false,error:'O serviço de catálogo recusou as credenciais (401). Confira o tipo e o valor do Secret na Cloudflare.'},502);
+   throw e;
+  }
+ }
+ if(path==='/api/health'&&method==='GET') {
+  let schemaReady=false,missing=[];
+  if(env.DB) try {
+    const out=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','profiles','sessions','login_guards','comments','reactions','my_list','watching')").all();
+    const names=new Set(out.results.map(x=>x.name));missing=['users','profiles','sessions','login_guards','comments','reactions','my_list','watching'].filter(x=>!names.has(x));schemaReady=missing.length===0;
+  }catch {missing=['Não foi possível verificar o banco'];}
+  return json({status:'ok',database:!!env.DB,schemaReady,missing,tmdb:!!tmdbReady(env),time:new Date().toISOString()});
+ }
  if(path==='/api/catalog'&&method==='GET'){
   const sec=url.searchParams.get('section')||'trending',page=Math.max(1,Math.min(5,Number(url.searchParams.get('page'))||1));
   return json(await catalog(env,sec,page));
@@ -164,11 +222,12 @@ async function handle(req,env) {
   const b=await bodyJson(req),email=String(b.email||'').toLowerCase().trim();
   if(email.length>180||String(b.password||'').length>128)return fail('E-mail ou senha incorretos.',401);
   const emailHash=await sha256(email);
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS login_guards (email_hash TEXT PRIMARY KEY,attempts INTEGER NOT NULL DEFAULT 0,blocked_until INTEGER NOT NULL DEFAULT 0)').run();
   const guard=await env.DB.prepare('SELECT attempts,blocked_until FROM login_guards WHERE email_hash=?').bind(emailHash).first();
   if(guard?.blocked_until>Date.now())return fail('Muitas tentativas. Aguarde 15 minutos e tente novamente.',429);
   const u=await env.DB.prepare('SELECT id,password_hash FROM users WHERE email=?').bind(email).first();
   if(!u?.password_hash||!await verifyHash(String(b.password||''),u.password_hash)){
-   const attempts=(guard?.blocked_until<Date.now()?0:(guard?.attempts||0))+1;
+   const attempts=(guard?.blocked_until && guard.blocked_until<Date.now()?0:(guard?.attempts||0))+1;
    await env.DB.prepare(`INSERT INTO login_guards(email_hash,attempts,blocked_until) VALUES(?,?,?)
     ON CONFLICT(email_hash) DO UPDATE SET attempts=excluded.attempts,blocked_until=excluded.blocked_until`)
     .bind(emailHash, attempts>=8?0:attempts, attempts>=8?Date.now()+15*60*1000:0).run();
@@ -176,6 +235,14 @@ async function handle(req,env) {
   }
   await env.DB.prepare('DELETE FROM login_guards WHERE email_hash=?').bind(emailHash).run();
   return await authResponse(env,req,u.id);
+ }
+ if(path==='/api/reactions'&&method==='GET'){
+  const type=url.searchParams.get('type'),id=url.searchParams.get('id');if(!safeMedia(type,id))return fail('Título inválido.');
+  if(!env.DB)return json({likes:0,dislikes:0,mine:0});
+  const rows=await env.DB.prepare('SELECT vote,COUNT(*) total FROM reactions WHERE media_type=? AND media_id=? GROUP BY vote').bind(type,+id).all();
+  const authed=await session(req,env);
+  const mine=authed?.profile_id?await env.DB.prepare('SELECT vote FROM reactions WHERE profile_id=? AND media_type=? AND media_id=?').bind(authed.profile_id,type,+id).first():null;
+  return json({likes:rows.results.find(r=>r.vote===1)?.total||0,dislikes:rows.results.find(r=>r.vote===-1)?.total||0,mine:mine?.vote||0});
  }
  if(path==='/api/comments'&&method==='GET'){
   const type=url.searchParams.get('type'),id=url.searchParams.get('id');if(!safeMedia(type,id))return fail('Título inválido.');
@@ -241,6 +308,13 @@ async function handle(req,env) {
   await env.DB.prepare(`INSERT INTO watching(profile_id,media_type,media_id,season,episode,payload,updated_at) VALUES(?,?,?,?,?,?,datetime('now'))
     ON CONFLICT(profile_id,media_type,media_id) DO UPDATE SET season=excluded.season,episode=excluded.episode,payload=excluded.payload,updated_at=datetime('now')`).bind(s.profile_id,b.type,+b.id,season,episode,cleanSnapshot(b.snapshot,b.type,b.id)).run();return json({ok:true});
  }
+ if(path==='/api/reactions'&&method==='POST'){
+   const b=await bodyJson(req);if(!safeMedia(b.type,b.id)||![1,-1,0].includes(b.vote))return fail('Avaliação inválida.');
+   if(b.vote===0) await env.DB.prepare('DELETE FROM reactions WHERE profile_id=? AND media_type=? AND media_id=?').bind(s.profile_id,b.type,+b.id).run();
+   else await env.DB.prepare(`INSERT INTO reactions(profile_id,media_type,media_id,vote) VALUES(?,?,?,?)
+    ON CONFLICT(profile_id,media_type,media_id) DO UPDATE SET vote=excluded.vote,created_at=datetime('now')`).bind(s.profile_id,b.type,+b.id,b.vote).run();
+   return json({ok:true});
+ }
  if(path==='/api/comments'&&method==='POST'){
   const b=await bodyJson(req),content=String(b.content||'').trim();if(!safeMedia(b.type,b.id)||content.length<2||content.length>500)return fail('Comentário precisa ter de 2 a 500 caracteres.');
   const last=await env.DB.prepare('SELECT created_at FROM comments WHERE profile_id=? ORDER BY created_at DESC LIMIT 1').bind(s.profile_id).first();
@@ -258,14 +332,14 @@ export default {
   } catch(e) {
    console.error('LISOFLIX API:',e?.message||e);
    const msg=e?.message||'Falha inesperada';
-   return fail(msg==='TMDB_NOT_CONFIGURED'?'Configure a chave do TMDB.':msg,500);
+   return fail(msg==='TMDB_NOT_CONFIGURED'?'Configure a chave do catálogo.':msg==='TMDB_AUTH_401'?'A credencial do catálogo foi recusada (401). Verifique o Secret TMDB_API_KEY ou TMDB_BEARER_TOKEN no Worker.':msg,msg==='TMDB_AUTH_401'?502:500);
   }
  },
  async scheduled(event,env,ctx){
   if(!env.DB)return;
   ctx.waitUntil((async()=>{
    await env.DB.prepare('DELETE FROM sessions WHERE expires_at<?').bind(new Date().toISOString()).run();
-   await env.DB.prepare('DELETE FROM login_guards WHERE blocked_until<? AND attempts=0').bind(Date.now()-86400000).run();
+   try{await env.DB.prepare('DELETE FROM login_guards WHERE blocked_until<? AND attempts=0').bind(Date.now()-86400000).run();}catch(e){console.warn('login_guards pendente de criação',e?.message);}
    if(!tmdbReady(env))return;
    for(const sec of ['trending','upcoming','airing','anime','movies','series']){
     try{await catalog(env,sec,1,true);}catch(e){console.error('refresh',sec,e?.message);}

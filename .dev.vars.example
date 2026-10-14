@@ -1,2 +1,5 @@
 TMDB_API_KEY=COLE_SUA_CHAVE_TMDB_V3_AQUI
 # Ou use TMDB_BEARER_TOKEN=seu_token_v4 (alternativa ao acima)
+
+# Se preferir API Read Access Token, use esta variavel no lugar da v3:
+# TMDB_BEARER_TOKEN=COLE_SEU_TOKEN_LONGO_AQUI
