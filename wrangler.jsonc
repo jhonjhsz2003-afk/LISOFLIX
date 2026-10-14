@@ -20,7 +20,7 @@
     "crons": ["*/30 * * * *"]
   },
   "vars": {
-    "ENABLE_EXTERNAL_EMBEDS": "false",
+    "ENABLE_EXTERNAL_EMBEDS": "true",
     "SITE_NAME": "LISOFLIX"
   }
 }
