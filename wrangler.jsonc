@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "lisoflix-db",
-      "database_id": "COLOQUE-AQUI-O-ID-DO-SEU-D1"
+      "database_id": "84f209c7-a842-406c-92ae-ebfebeab73dc"
     }
   ],
   "triggers": {
