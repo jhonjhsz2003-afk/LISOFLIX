@@ -1,4 +1,4 @@
-# LISOFLIX v1.6.2 - atualizar Worker sem modificar tabelas do banco D1.
+# LISOFLIX v1.6.3 - atualizar Worker sem modificar tabelas do banco D1.
 # Execute dentro da pasta extraida. Mantenha o UUID real no wrangler.jsonc.
 $ErrorActionPreference = 'Stop'
 if (-not $PSScriptRoot) { throw 'Execute este arquivo .ps1 a partir da pasta extraida.' }
@@ -28,14 +28,14 @@ try {
   if ($ok.ToUpperInvariant() -cne 'SIM') { throw 'Operacao cancelada.' }
   $folder = Join-Path $env:LOCALAPPDATA 'LISOFLIX\backups'
   New-Item -ItemType Directory -Force -Path $folder | Out-Null
-  $backup = Join-Path $folder ('antes-do-deploy-162-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'.sql')
+  $backup = Join-Path $folder ('antes-do-deploy-163-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'.sql')
   Run 'npx.cmd' @('wrangler','d1','export',$remoteName,'--remote',"--output=$backup")
   if (-not (Test-Path -LiteralPath $backup) -or (Get-Item -LiteralPath $backup).Length -lt 10) { throw 'Backup D1 nao foi criado. Publicacao cancelada.' }
   Write-Host "Backup seguro: $backup" -ForegroundColor Green
   Run 'npm.cmd' @('test')
   # NAO executa schema.sql, DROP, UPDATE, ou migracoes nesta atualizacao.
   Run 'npx.cmd' @('wrangler','deploy')
-  Write-Host 'LISOFLIX v1.6.2 publicado. Nenhuma tabela do D1 foi modificada pelo script.' -ForegroundColor Green
+  Write-Host 'LISOFLIX v1.6.3 publicado. Nenhuma tabela do D1 foi modificada pelo script.' -ForegroundColor Green
   Write-Host 'Confira /api/health e /api/system-check e teste o layout no navegador.' -ForegroundColor Cyan
 } catch {
   Write-Host "ERRO: $($_.Exception.Message)" -ForegroundColor Red

@@ -104,19 +104,67 @@ function renderLanguages(){return `<div class="page-top container"><div class="e
 function renderSearch(){const results=state.searchResults||[];return `<div class="page-top container"><div class="eyebrow">Busca rápida</div><h1 class="page-title">${state.search?'Resultados para “'+esc(state.search)+'”':'Buscar títulos'}</h1><p class="page-lede">Procure filmes, séries, animes e desenhos de todos os gêneros.</p></div><div class="container content-page"><div class="catalog-grid">${results.length?results.map(x=>tile(x)).join(''):state.isLoading?loadingTiles():emptyPage('⌕','Nenhum resultado ainda','Pesquise por um nome diferente.','searchtoggle','Buscar novamente')}</div></div>`;}
 function render(){app.innerHTML=`${renderHeader()}<main>${state.page==='minha-lista'?renderLibrary():state.page==='idiomas'?renderLanguages():state.page==='busca'?renderSearch():renderHome()}</main>${renderFooter()}`;renderOverlay();document.body.classList.toggle('modal-open',!!state.overlay);}
 function updateHeader(){const header=$('.site-head');if(header){header.classList.toggle('scrolled',scrollY>30);}}
+// Carrega a primeira página de cada categoria sem esperar dezenas de requisições.
+// As páginas adicionais são buscadas em segundo plano, com concorrência limitada.
+let sectionsGeneration=0;
+async function limitedPool(items,limit,task){
+ let next=0;
+ await Promise.all(Array.from({length:Math.min(items.length,limit)},async()=>{
+  while(next<items.length){const item=items[next++];await task(item);}
+ }));
+}
+function mergeCatalogSection(sec,data,append=false){
+ const prior=append?(state.sections[sec]?.results||[]):[];
+ const seen=new Set();const results=[...prior,...(data.results||[])].filter(m=>{
+  if(!sectionMatches(sec,m)||seen.has(key(m)))return false;
+  seen.add(key(m));return true;
+ });
+ state.sections[sec]={...state.sections[sec],...data,results:results.slice(0,65),failed:false};
+}
+function renderCatalogWithoutScrollJump(page){
+ if(state.page!==page||state.overlay)return;
+ const y=window.scrollY;
+ const positions=new Map([...document.querySelectorAll('.section[id]')].map(el=>[el.id,el.querySelector('.rail-scroll')?.scrollLeft||0]));
+ render();
+ for(const [id,left] of positions){const rail=document.getElementById(id)?.querySelector('.rail-scroll');if(rail)rail.scrollLeft=left;}
+ if(Math.abs(window.scrollY-y)>3)window.scrollTo(0,y);
+}
 async function loadSections(page=state.page){
- const desired=pageConfig[page]?.sections||pageConfig.inicio.sections;state.isLoading=true;state.sectionError='';render();
+ const generation=++sectionsGeneration,desired=pageConfig[page]?.sections||pageConfig.inicio.sections;
  const names=[...new Set(desired.map(x=>x[0]))];
- await Promise.all(names.map(async sec=>{
-  if(state.sections[sec]&&!state.sections[sec].failed)return;
+ state.sectionError='';state.isLoading=true;render();
+ // Renderiza resultados da primeira página conforme chegam (primeiro os acima da dobra).
+ await limitedPool(names,5,async sec=>{
+  if(state.sections[sec]?.results?.length&&!state.sections[sec].failed)return;
   try{
-   const count=['anime','animenew','animefilms','cartoons','cartoonnew','cartoonfilms','series','trendingseries','airing','dorama'].includes(sec)?3:2;
-   const pages=await Promise.all(Array.from({length:count},(_,i)=>api(`/api/catalog?section=${sec}&page=${i+1}`).catch(()=>null)));
-   const ok=pages.filter(Boolean);if(!ok.length)throw Error('Erro ao consultar a seção '+sec);
-   const seen=new Set();const results=ok.flatMap(p=>p.results||[]).filter(m=>{if(!sectionMatches(sec,m)||seen.has(key(m)))return false;seen.add(key(m));return true;});
-   state.sections[sec]={...ok[0],results};state.isDemo=state.isDemo&&ok.every(p=>p.demo);
-  }catch(e){state.sectionError=e.message;state.sections[sec]={results:state.config.tmdb?[]:DEMO.filter(x=>sectionMatches(sec,x)),demo:!state.config.tmdb,failed:true};}
- }));state.isLoading=false;if(state.page===page)render();}
+   const data=await api(`/api/catalog?section=${encodeURIComponent(sec)}&page=1`,{signal:AbortSignal.timeout(10000)});
+   mergeCatalogSection(sec,data);
+   state.isDemo=state.isDemo&&!!data.demo;
+  }catch(e){
+   state.sections[sec]={results:state.config.tmdb?[]:DEMO.filter(x=>sectionMatches(sec,x)),failed:true};
+   if(!state.sectionError)state.sectionError='Algumas categorias estão temporariamente indisponíveis';
+  }
+  if(generation===sectionsGeneration)renderCatalogWithoutScrollJump(page);
+ });
+ if(generation!==sectionsGeneration)return;
+ state.isLoading=false;renderCatalogWithoutScrollJump(page);
+ // Resultados adicionais não atrasam a primeira tela nem bloqueiam a navegação.
+ const more=names.flatMap(sec=>{
+  if(state.sections[sec]?.failed)return [];
+  const count=['anime','animenew','animefilms','cartoons','cartoonnew','cartoonfilms','series','trendingseries','airing','dorama'].includes(sec)?3:2;
+  return Array.from({length:count-1},(_,i)=>[sec,i+2]);
+ });
+ void limitedPool(more,3,async([sec,pageNum])=>{
+  if(generation!==sectionsGeneration)return;
+  try{
+   const data=await api(`/api/catalog?section=${encodeURIComponent(sec)}&page=${pageNum}`,{signal:AbortSignal.timeout(12000)});
+   if(generation!==sectionsGeneration)return;
+   mergeCatalogSection(sec,data,true);
+   // Atualiza a grade sem zerar a posição dos carrosséis.
+   renderCatalogWithoutScrollJump(page);
+  }catch(e){console.warn('Página adicional indisponível:',sec,pageNum);}
+ });
+}
 async function navigate(page,{push=true}={}){
  if(!headerPages.some(([k])=>k===page)&&page!=='busca')page='inicio';
  const previous=state.page;state.page=page;state.menuOpen=false;state.profileMenu=false;state.heroIndex=0;state.genre='';state.genreResults=[];state.overlay=null;
@@ -223,7 +271,7 @@ function playerModal(){
  const ep=state.playerEpisode, epName=ep?` · T${ep.season}E${ep.episode}`:'';
  const source=state.playback;
  const playbackReason=source?.error?`Falha ao consultar o player: ${esc(source.error)}.`:
- source?.reason==='no-source-configured'?'Este título ainda não possui uma fonte de vídeo cadastrada no LISOFLIX.':
+ source?.reason==='no-source-configured'?'Ainda não há uma fonte autorizada para este título.':
  source?.reason==='source-not-allowed'?'O domínio do vídeo precisa constar em MEDIA_ALLOWED_HOSTS na configuração segura do Worker.':
  source?.reason==='catalog-only'?'O banco D1 está incompleto ou não está ligado ao Worker.':
  source?.reason==='invalid-format'?'O formato do vídeo cadastrado não é aceito pelo player nativo.':
@@ -234,7 +282,7 @@ function playerModal(){
  <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2><span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
  <div class="player-viewport branded-video">
  ${!source||source.loading?`<div class="player-message">${icon('refresh')}<h3>Buscando uma fonte de vídeo disponível…</h3><p>Aguarde enquanto verificamos a disponibilidade deste título.</p></div>`:
- source.available&&source.mode==='iframe'?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(source.url)}" title="Player externo de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="eager" fetchpriority="high"></iframe><div class="embed-notice"><span>Player externo: se a imagem não carregar, tente recarregar. A disponibilidade e os controles dependem do fornecedor.</span><div class="embed-actions"><button class="embed-retry" type="button" data-action="retryembed" aria-label="Recarregar o player">${icon('refresh')} Recarregar player</button><button class="embed-retry" type="button" data-action="backdetail">Voltar aos detalhes</button></div></div></div>`:
+ source.available&&source.mode==='iframe'?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(source.url)}" title="Player externo de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="eager" fetchpriority="high"></iframe><div class="embed-notice"><span>Player externo: a URL foi preparada, mas a reprodução depende da disponibilidade e das permissões do fornecedor.</span><div class="embed-actions"><button class="embed-retry" type="button" data-action="retryembed" aria-label="Recarregar o player">${icon('refresh')} Recarregar player</button><button class="embed-retry" type="button" data-action="backdetail">Voltar aos detalhes</button></div></div></div>`:
  source.available?`<div class="native-video-wrap"><video id="native-player" playsinline preload="metadata" poster="${esc(pics(d)||'')}"><source src="${esc(source.url)}" type="${esc(source.mime)}">Seu navegador não consegue reproduzir este formato.</video><div class="native-controls"><button class="native-control" data-action="pauseplay" aria-label="Reproduzir ou pausar">${icon('play')}</button><span id="video-clock">0:00 / 0:00</span><input id="video-seek" type="range" value="0" min="0" max="100" step=".1" aria-label="Progresso do vídeo"><button class="native-control" data-action="mutetoggle" aria-label="Silenciar">${icon('volume')}</button><input id="video-volume" type="range" min="0" max="1" value="1" step=".05" aria-label="Volume"><button class="native-control" data-action="fullscreen" aria-label="Tela cheia">⛶</button></div><p class="video-status" id="video-status" aria-live="polite"></p></div>`:
  `<div class="player-message"><img class="unavailable-emblem" src="/brand/lisoflix-emblem.webp" alt=""/><h3>Reprodução indisponível para este título</h3><p>${playbackReason} O catálogo fornece informações e capas, mas não arquivos de reprodução. Você ainda pode assistir ao trailer, quando disponível.</p><div class="player-buttons"><button class="btn btn-main" data-action="backdetail">Voltar aos detalhes</button>${dVideo(d)?`<button class="btn btn-glass" data-action="trailer">${icon('film')} Ver trailer</button>`:''}</div></div>`}
  </div><div class="player-banner">LISOFLIX · Reprodução sujeita à autorização e disponibilidade da fonte. Iframes externos usam seus próprios controles.</div></div></div>`;
@@ -355,5 +403,26 @@ setInterval(()=>{
  const old=document.querySelector('.hero');if(!old)return;
  const shell=document.createElement('div');shell.innerHTML=renderHero();old.replaceWith(shell.firstElementChild);
 },14000);
-async function init(){try{state.config=await api('/api/config');}catch{state.config={tmdb:false,embeds:false};}state.isDemo=!state.config.tmdb;await refreshMe();await refreshLibrary();const route=(location.hash||'#/inicio').replace(/^#\//,'').split('/')[0];state.page=(headerPages.some(x=>x[0]===route)||route==='busca')?route:'inicio';if(state.page==='minha-lista')render();else if(state.page==='idiomas')await loadDiscover();else await loadSections(state.page);if(state.user&&!state.activeProfile){state.overlay='profiles';renderOverlay();}if((location.hash||'').split('/').length>2)await syncFromAddress();}
+async function init(){
+ // Configuração e sessão são independentes. Não bloquear catálogo na Minha Lista.
+ await Promise.all([
+  api('/api/config').then(c=>{state.config=c;}).catch(()=>{state.config={tmdb:false,embeds:false};}),
+  refreshMe()
+ ]);
+ state.isDemo=!state.config.tmdb;
+ const route=(location.hash||'#/inicio').replace(/^#\//,'').split('/')[0];
+ state.page=(headerPages.some(x=>x[0]===route)||route==='busca')?route:'inicio';
+ const libraryReady=refreshLibrary().then(()=>{
+  // O painel pode começar a carregar antes das listas do usuário.
+  if(!state.overlay){if(pageConfig[state.page])renderCatalogWithoutScrollJump(state.page);else render();}
+ });
+ if(state.page==='minha-lista')render();
+ else if(state.page==='idiomas')void loadDiscover();
+ else if(state.page==='busca')void runSearch();
+ else void loadSections(state.page);
+ if(state.user&&!state.activeProfile){state.overlay='profiles';renderOverlay();}
+ if((location.hash||'').split('/').length>2)await syncFromAddress();
+ await libraryReady;
+}
+
 init();

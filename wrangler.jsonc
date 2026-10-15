@@ -25,6 +25,7 @@
   },
   "vars": {
     "SITE_NAME": "LISOFLIX",
-    "ENABLE_EXTERNAL_EMBEDS": "true"
+    "ENABLE_EXTERNAL_EMBEDS": "true",
+    "ENABLE_EMBEDMOVIES_AUTOMATIC": "true"
   }
 }

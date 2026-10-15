@@ -1,7 +1,7 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.6.3';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
@@ -40,6 +40,8 @@ const sections = {
 
 // Iframes de fontes explicitamente cadastradas (sem executar PHP ou acessar URLs arbitrárias).
 function iframeFeatureEnabled(env) {return String(env.ENABLE_EXTERNAL_EMBEDS||'').toLowerCase()==='true';}
+// Descoberta por ID, como no AnimeDragon. Ativar somente para o catálogo com direito de exibição.
+function automaticEmbedsEnabled(env) {return iframeFeatureEnabled(env)&&String(env.ENABLE_EMBEDMOVIES_AUTOMATIC||'').toLowerCase()==='true';}
 function licensedEmbedUrl(type,id,season,episode,mode='standard') {
  if(!safeMedia(type,id)||mode!=='standard')return null;
  if(type==='tv'&&(!Number.isInteger(season)||season<1||!Number.isInteger(episode)||episode<1))return null;
@@ -186,7 +188,7 @@ async function handle(req,env) {
   if(origin&&origin!==url.origin)return fail('Origem não autorizada.',403);
   if(!req.headers.get('Content-Type')?.startsWith('application/json'))return fail('Use application/json.',415);
  }
- if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:iframeFeatureEnabled(env),videoMode:'native-plus-approved-embeds',version:APP_VERSION});
+ if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:iframeFeatureEnabled(env),videoMode:'native-plus-approved-embeds',version:APP_VERSION,automaticEmbeds:automaticEmbedsEnabled(env)});
  // Uma verificacao publica que nao mostra credenciais, emails, IDs de conta ou URLs privadas.
  if(path==='/api/system-check'&&method==='GET'){
   const db=await databaseHealth(env);let catalogAuth='not-configured';
@@ -203,7 +205,7 @@ async function handle(req,env) {
     activeEmbeds=embeds?.total??0;
    } catch(e) { console.warn('Playback counts unavailable', e?.message); }
   }
-  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-plus-approved-embeds',activeSources,activeEmbeds,externalEmbedsSupported:true,externalEmbedsEnabled:iframeFeatureEnabled(env)});
+  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-plus-approved-embeds',activeSources,activeEmbeds,externalEmbedsSupported:true,externalEmbedsEnabled:iframeFeatureEnabled(env),automaticEmbedsEnabled:automaticEmbedsEnabled(env)});
  }
  if(path==='/api/tmdb/check'&&method==='GET'){
   if(!tmdbReady(env))return json({configured:false,authorized:false,error:'Secret de catálogo não configurado.'},503);
@@ -278,11 +280,19 @@ async function handle(req,env) {
       WHERE media_type=? AND media_id=? AND ((season=? AND episode=?) OR (?='tv' AND season=0 AND episode=0))
       ORDER BY CASE WHEN season=? AND episode=? THEN 0 ELSE 1 END LIMIT 1`)
       .bind(type,+id,season,episode,type,season,episode).first();
-   if(!embed||embed.enabled!==1||embed.provider!=='embedmovies')return json({available:false,reason:'no-source-configured'});
-   const embedUrl=licensedEmbedUrl(type,+id,season,episode,embed.mode);
+   // Regras exatas ou gerais do D1 têm prioridade sobre a descoberta automática.
+   // Um registro explicitamente desativado sempre bloqueia o conteúdo.
+   if(embed && (embed.enabled!==1||embed.provider!=='embedmovies'))
+     return json({available:false,reason:'source-disabled'});
+   if(!embed&&!automaticEmbedsEnabled(env))
+     return json({available:false,reason:'no-source-configured'});
+   const embedUrl=licensedEmbedUrl(type,+id,season,episode,embed?.mode||'standard');
    if(!embedUrl)return json({available:false,reason:'invalid-embed'});
-   // 'available' indica uma configuração existente, não confirmação da execução dentro do iframe.
-   return json({available:true,availabilityVerified:false,mode:'iframe',url:embedUrl,label:embed.label||'Player externo',external:true,customControls:false,scope:embed.season===0&&embed.episode===0&&type==='tv'?'series':'episode'});
+   // A geração da URL não verifica o catálogo ou os direitos do provedor.
+   return json({available:true,availabilityVerified:false,mode:'iframe',url:embedUrl,
+     label:embed?.label||'EmbedMovies',external:true,customControls:false,
+     scope:embed?(embed.season===0&&embed.episode===0&&type==='tv'?'series':'episode'):'provider-auto',
+     notice:'A fonte é uma incorporação externa: o vídeo pode não existir ou não estar autorizado para exibição.'});
   }
   const permitted=(env.MEDIA_ALLOWED_HOSTS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
   let u;try{u=new URL(entry.url);}catch{return json({available:false,reason:'invalid-url'});}
