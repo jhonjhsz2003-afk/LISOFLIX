@@ -52,7 +52,7 @@ test('falta de permissao para embeddings não libera alternativa',async()=>{
  const {DB}=mock();const r=(await get(DB,'/api/playback?type=movie&id=399566',{...opts,ENABLE_EXTERNAL_EMBEDS:'false'})).value;
  assert.equal(r.available,false);assert.equal(r.players,undefined);
 });
-test('interface tem troca apenas em cima, remove barras inferiores e mantém sandbox sem popups',()=>{
+test('interface com troca superior, sem barras e sandbox por fornecedor',()=>{
  const ui=read('public/app.js'),css=read('public/style.css'),hdr=read('public/_headers');
  assert.match(ui,/data-action="switchplayer"/);
  assert.match(ui,/case 'switchplayer'/);
@@ -62,6 +62,8 @@ test('interface tem troca apenas em cima, remove barras inferiores e mantém san
  assert.doesNotMatch(ui,/class="embed-notice"/);
  assert.doesNotMatch(ui,/class="player-banner"/);
  assert.match(ui,/sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"/);
+ assert.match(ui,/embedSandboxAttr\(activeEmbed\)/);
+ assert.match(ui,/function validEmbedOption\(p\)/);
  assert.doesNotMatch(ui,/allow-popups/);
  assert.match(css,/v1\.6\.4: player sem faixas inferiores/);
  assert.match(hdr,/frame-src.*https:\/\/multiembed\.mov/);
@@ -69,7 +71,7 @@ test('interface tem troca apenas em cima, remove barras inferiores e mantém san
 });
 test('status informa que secundário está habilitado sem expor URLs de iframe',async()=>{
  const {DB}=mock();const v=(await get(DB,'/api/config',opts)).value;
- assert.equal(v.version,'1.6.4');assert.equal(v.secondaryPlayer,'superembed');
+ assert.equal(v.version,'1.6.5');assert.equal(v.secondaryPlayer,'superembed');
  assert.doesNotMatch(JSON.stringify(v),/multiembed\.mov/);
  const none=(await get(DB,'/api/config',{...opts,ENABLE_SUPEREMBED_FALLBACK:'false'})).value;
  assert.equal(none.secondaryPlayer,null);

@@ -266,13 +266,18 @@ function attachNativePlayer(resumeAt=0){
  video.addEventListener('play',()=>syncVideoControls(video));
 }
 function syncVideoControls(video){const seek=$('#video-seek'),clockEl=$('#video-clock'),btn=document.querySelector('[data-action="pauseplay"]');if(seek&&video.duration)seek.value=String(video.currentTime/video.duration*100);if(clockEl)clockEl.textContent=`${clock(video.currentTime)} / ${clock(video.duration)}`;if(btn)btn.innerHTML=video.paused?icon('play'):'❚❚';}
+// Nunca confiar em URLs arbitrárias de um provedor. O Worker só gera essas duas origens.
+function validEmbedOption(p){return Boolean(p&&typeof p.url==='string'&&((p.provider==='embedmovies'&&/^https:\/\/myembed\.biz\/(filme|serie)\//.test(p.url))||(p.provider==='superembed'&&/^https:\/\/multiembed\.mov\/\?video_id=/.test(p.url))));}
+// O SuperEmbed recusa sandbox: desative-o APENAS no iframe desse fornecedor.
+// Sem sandbox, pop-ups/redirecionamentos de terceiros podem ocorrer; nunca relaxar a CSP do site inteiro.
+function embedSandboxAttr(p){return p?.provider==='superembed'&&validEmbedOption(p)?'':' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"';}
 function playerModal(){
  const d=state.detail;if(!d)return '';
  const ep=state.playerEpisode, epName=ep?` · T${ep.season}E${ep.episode}`:'';
  const source=state.playback;
  const options=source?.mode==='iframe'&&source?.available
   ?(Array.isArray(source.players)&&source.players.length?source.players:[{provider:'embedmovies',label:source.label||'Player principal',url:source.url}])
-    .filter(p=>p&&typeof p.url==='string'&&/^https:\/\/(myembed\.biz|multiembed\.mov)\//.test(p.url))
+    .filter(validEmbedOption)
   :[];
  const chosenIndex=Math.max(0,Math.min(options.length-1,Number(state.playerOptionIndex)||0));
  const activeEmbed=options[chosenIndex];
@@ -289,7 +294,7 @@ function playerModal(){
  <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2>${source?.available&&source.mode==='iframe'&&activeEmbed?`<div class="player-tools"><span class="player-source" aria-live="polite">Player ${chosenIndex+1}/${options.length}</span>${options.length>1?`<button type="button" class="player-tool" data-action="switchplayer" title="Testar outro player">${icon('refresh')} Trocar player</button>`:''}<button type="button" class="player-tool player-tool-icon" data-action="retryembed" title="Recarregar este player" aria-label="Recarregar este player">${icon('refresh')}</button></div>`:''}<span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
  <div class="player-viewport branded-video">
  ${!source||source.loading?`<div class="player-message">${icon('refresh')}<h3>Buscando uma fonte de vídeo disponível…</h3><p>Aguarde enquanto verificamos a disponibilidade deste título.</p></div>`:
- source.available&&source.mode==='iframe'&&activeEmbed?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(activeEmbed.url)}" title="Player ${chosenIndex+1} de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="eager" fetchpriority="high"></iframe></div>`:
+ source.available&&source.mode==='iframe'&&activeEmbed?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(activeEmbed.url)}" title="Player ${chosenIndex+1} de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"${embedSandboxAttr(activeEmbed)} referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="eager" fetchpriority="high"></iframe></div>`:
  source.available&&source.mode==='native'?`<div class="native-video-wrap"><video id="native-player" playsinline preload="metadata" poster="${esc(pics(d)||'')}"><source src="${esc(source.url)}" type="${esc(source.mime)}">Seu navegador não consegue reproduzir este formato.</video><div class="native-controls"><button class="native-control" data-action="pauseplay" aria-label="Reproduzir ou pausar">${icon('play')}</button><span id="video-clock">0:00 / 0:00</span><input id="video-seek" type="range" value="0" min="0" max="100" step=".1" aria-label="Progresso do vídeo"><button class="native-control" data-action="mutetoggle" aria-label="Silenciar">${icon('volume')}</button><input id="video-volume" type="range" min="0" max="1" value="1" step=".05" aria-label="Volume"><button class="native-control" data-action="fullscreen" aria-label="Tela cheia">⛶</button></div><p class="video-status" id="video-status" aria-live="polite"></p></div>`:
  `<div class="player-message"><img class="unavailable-emblem" src="/brand/lisoflix-emblem.webp" alt=""/><h3>Reprodução indisponível para este título</h3><p>${playbackReason} O catálogo fornece informações e capas, mas não arquivos de reprodução. Você ainda pode assistir ao trailer, quando disponível.</p><div class="player-buttons"><button class="btn btn-main" data-action="backdetail">Voltar aos detalhes</button>${dVideo(d)?`<button class="btn btn-glass" data-action="trailer">${icon('film')} Ver trailer</button>`:''}</div></div>`}
  </div></div></div>`;

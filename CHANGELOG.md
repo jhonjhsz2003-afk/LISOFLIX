@@ -1,3 +1,11 @@
+# LISOFLIX v1.6.5 — correção de sandbox do SuperEmbed
+
+- Corrige a tela “Sandboxing is not allowed!” no Player 2: retira o atributo `sandbox` somente do iframe do SuperEmbed, quando o endereço é válido e pertence a `multiembed.mov`.
+- O EmbedMovies (Player 1), trailer e demais componentes continuam com as proteções anteriores. O conteúdo externo continua isolado pela origem (Same-Origin Policy) e restrito à lista `frame-src` da CSP.
+- Mantém troca manual de player, controles no topo, sem barras inferiores. Não altera o schema, contas ou dados do Cloudflare D1.
+- **Risco conhecido:** sem sandbox, o SuperEmbed e seus servidores podem abrir pop-ups ou tentar redirecionamentos. Não é possível impedir nem garantir sua segurança do lado do LISOFLIX. Use apenas fornecedores e conteúdos cuja incorporação seja autorizada.
+- Testes locais verificam o atributo de iframe por fornecedor e a geração de URLs; não garantem que o terceiro reproduzirá cada mídia.
+
 # LISOFLIX v1.6.4 — segundo player e tela de reprodução limpa
 
 - EmbedMovies permanece como player principal. SuperEmbed passa a ser opção secundária via `ENABLE_SUPEREMBED_FALLBACK`, com URLs do fornecedor geradas por ID TMDB, temporada e episódio.
