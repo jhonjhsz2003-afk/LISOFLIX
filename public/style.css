@@ -135,3 +135,60 @@ footer .logo .brand-inline { width:189px;height:72px; }
  .detail-card .related-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;}
  .hero-actions .btn {min-height:44px;min-width:125px;padding:0 13px;font-size:12px;}
 }
+
+/* LISOFLIX v1.3 — navegação consistente, desempenho e player nativo para fontes autorizadas. */
+:root{--focus:#ffc383;--control:#1d1718}
+button,a,input,select{touch-action:manipulation}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.icon-button,.btn,.return,.nav-link,.arrow,.profile-trigger{transition:background-color .16s,color .16s,transform .16s,box-shadow .16s}
+.btn,.hero-actions .btn{min-height:48px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:9px;line-height:1.2;padding:10px 20px;font-size:13px;font-weight:800;min-width:142px}
+.btn .icon{flex-shrink:0}
+.hero{height:min(95svh,1030px);min-height:720px}
+.hero-art{background-position:center 30%;background-repeat:no-repeat}
+.hero-inner{max-width:min(1080px,75vw)}
+.hero .statusline{max-width:650px}
+.catalog-alert{margin:12px 0 22px;background:#321e1b;border:1px solid #f36b4052;border-radius:12px;padding:15px 18px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;color:#ffe2d0;font-size:13px}
+.catalog-alert .icon{color:#ff9c6c}.catalog-alert a{color:#fff;text-decoration:underline}
+.tile{overflow:hidden;isolation:isolate}
+.tile-img{width:100%;height:100%;object-fit:cover;object-position:center;transition:transform .25s;aspect-ratio:auto}
+.tile:hover .tile-img{transform:scale(1.06)}
+.tile-fallback{display:grid;place-items:center;height:100%;width:100%;min-height:inherit;font-size:clamp(14px,1.5vw,20px);line-height:1.3;font-weight:900;color:#fff;text-align:center;padding:25px;letter-spacing:-.3px;background:radial-gradient(circle at 35% 20%,#863223,#302020 55%,#0d0a0d)}
+.rails:not(.top-rail) .tile,.top-rail .tile{height:auto;aspect-ratio:1.79;min-height:145px}
+.rail-arrows-overlay{inset:0 1px 12px}
+.rail-arrows-overlay .arrow{background:#11111188;backdrop-filter:blur(7px);border:1px solid #fff3;color:white;opacity:.94}
+.rail-arrows-overlay .arrow:hover{background:#e34928aa;box-shadow:0 15px 33px #0008}
+.rail-arrows-overlay .arrow:active{transform:scale(.97)}
+.detail-card{min-height:70svh}
+.detail-card .detail-section:not(:last-child){border-bottom:1px solid #ffffff0b;padding-bottom:24px}
+.detail-card .modal-hero:after{pointer-events:none}
+.detail-card .close-round{z-index:4}
+.modal-info{color:#f8f7f8}
+.episode{width:100%;min-height:100px;align-items:center}
+.episode .epi-thumb{height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:8px}
+.related-card{border-radius:11px;overflow:hidden}
+.related-card img{object-fit:cover}
+.player-shell{background:radial-gradient(circle at center,#1a1010,#050609 68%)}
+.player-toolbar{min-height:68px}
+.player-viewport.branded-video{position:relative;flex:1;min-height:0;display:grid;place-items:center;background:#050509}
+.player-message{display:flex;align-items:center;flex-direction:column;justify-content:center;text-align:center;max-width:680px;padding:34px 24px;gap:12px}
+.player-message>svg{height:46px;width:46px;color:#ff7248}
+.player-message h3{font-size:clamp(23px,3vw,35px);line-height:1.16;margin:4px 0;color:#fff}
+.player-message p{font-size:clamp(12px,1.3vw,15px);line-height:1.65;color:#c1b7b9;max-width:550px;margin:0}
+.unavailable-emblem{width:125px;height:125px;object-fit:contain;filter:drop-shadow(0 8px 25px #f236233a)}
+.player-buttons{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:16px}
+.native-video-wrap{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;width:100%;max-width:1600px;margin:auto;background:black;overflow:hidden}
+.native-video-wrap video{width:100%;height:100%;max-height:calc(100dvh - 148px);display:block;object-fit:contain;background:black}
+.native-controls{position:absolute;bottom:9px;left:12px;right:12px;padding:15px clamp(10px,2vw,22px);display:flex;align-items:center;gap:14px;background:linear-gradient(0deg,#090809ee,#0c0a0acc);border:1px solid #ffffff24;border-radius:16px;backdrop-filter:blur(12px);box-shadow:0 16px 45px #000a}
+.native-control{border:1px solid #ffffff29;border-radius:50%;background:#ffffff1a;color:#fff;width:44px;height:44px;flex:0 0 44px;font-size:22px;display:grid;place-items:center;cursor:pointer}
+.native-control:hover{background:#f45131}
+.native-control .icon{width:21px;height:21px}
+#video-clock{color:#f2efed;font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#video-seek{flex:1;min-width:90px;accent-color:#ff512d;cursor:pointer}
+#video-volume{width:92px;accent-color:#ff512d;cursor:pointer}
+.video-status{position:absolute;top:12px;left:18px;right:18px;text-align:center;color:#ffbea5;text-shadow:0 1px 6px #000;font-size:13px;pointer-events:none}
+.player-banner{color:#a8a4aa;font-size:11px;min-height:27px;display:flex;align-items:center;justify-content:center;padding:6px 12px}
+@media(max-width:900px){.hero{min-height:620px;height:84svh}.hero-inner{max-width:100%;padding-top:clamp(180px,23vh,240px)}.rails:not(.top-rail) .tile,.top-rail .tile{min-height:135px}.detail-card .modal-hero h2{font-size:clamp(36px,6vw,60px)}}
+@media(max-width:600px){.hero{height:79svh;min-height:580px}.hero-inner{padding-top:170px}.hero .hero-actions{gap:9px}.hero-actions .btn{min-width:0;padding:9px 13px}.rails:not(.top-rail) .tile,.top-rail .tile{min-height:160px;flex-basis:min(75vw,295px)}.rail-arrows-overlay .arrow{height:92px;width:42px}.detail-card .modal-hero{min-height:385px}.native-controls{left:5px;right:5px;bottom:4px;padding:9px 8px;gap:6px;border-radius:10px}.native-control{width:35px;height:35px;flex-basis:35px}#video-clock{font-size:10px}#video-volume{width:46px}.player-message{padding:25px 16px}.unavailable-emblem{width:85px;height:85px}}
+@media(prefers-reduced-motion:reduce){.tile:hover .tile-img{transform:none}.rail-scroll{scroll-behavior:auto}}
+
+.header-back{color:#fafafa;flex-shrink:0}.header-back:hover{background:#ffffff1f}@media(max-width:600px){.header-back{width:29px;height:29px;padding:5px}.site-head{gap:5px}}

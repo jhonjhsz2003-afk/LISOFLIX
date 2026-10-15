@@ -8,3 +8,8 @@ node_modules/
 .wrangler/
 .DS_Store
 *.log
+backups/
+*.sql.bak
+*.sqlite
+*.sqlite3
+*.db

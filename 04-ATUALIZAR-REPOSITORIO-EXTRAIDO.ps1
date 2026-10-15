@@ -26,7 +26,7 @@ try {
     $origin = (& git -C $temp remote get-url origin | Out-String).Trim()
     if ($origin -notmatch 'github\.com[:/]jhonjhsz2003-afk/LISOFLIX(?:\.git)?$') { throw "Remoto inesperado: $origin" }
     # Copiar os arquivos desta versao, sem segredos locais, dependencias ou dados Git.
-    $skipDirs = @('.git', 'node_modules', '.wrangler', '.vscode')
+    $skipDirs = @('.git', 'node_modules', '.wrangler', '.vscode', 'backups')
     $files = Get-ChildItem -LiteralPath $source -File -Recurse -Force
     $count = 0
     foreach ($file in $files) {
@@ -34,7 +34,7 @@ try {
         $parts = $rel -split '[\\/]'
         if ($parts | Where-Object { $skipDirs -contains $_ }) { continue }
         if ($file.Name -match '^(\.dev\.vars|\.env)(\.|$)' -and $file.Name -notin @('.dev.vars.example', '.env.example')) { continue }
-        if ($file.Name -match '\.log$') { continue }
+        if ($file.Name -match '\.(log|sqlite|db|sqlite3)$') { continue }
         $dest = Join-Path $temp $rel
         # Nunca substitua um UUID D1 configurado por um placeholder do ZIP.
         if ($rel -eq 'wrangler.jsonc' -and (Test-Path -LiteralPath $dest)) {

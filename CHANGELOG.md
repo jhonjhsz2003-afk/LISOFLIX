@@ -1,37 +1,37 @@
-# LISOFLIX — Histórico de versões
+# Registro de alterações — LISOFLIX
 
-## 1.2.1 — Correção da autenticação TMDB
+## v1.3.1 (14/10/2026)
 
-- Detecta automaticamente **API Key v3** ou **API Read Access Token (JWT)** no Secret do catálogo.
-- Envia credencial v3 na query `api_key` e token de leitura no cabeçalho seguro `Authorization: Bearer`.
-- Aceita Secrets com espaços/aspas externas e prefixo `Bearer` sem duplicá-lo.
-- Se ambas as credenciais estiverem configuradas, tenta a alternativa ao receber 401.
-- Novo endpoint de diagnóstico `/api/tmdb/check` que verifica a autenticação sem exibir segredos.
-- Melhor mensagem de erro 401 para diferenciar chave inválida de ausência de configuração.
-- Novo script PowerShell `06-CONFIGURAR-TMDB-SECRET.ps1` e testes de autenticação.
+- Corrigidos diagnósticos de autenticação, banco e fontes com a rota pública `/api/system-check` (sem expor segredos).
+- Ajustado cache de autenticação TMDB: respostas de erro não ficam em cache; resultados antigos do catálogo são usados temporariamente em falhas de rede quando disponíveis.
+- Corrigida preservação da posição do vídeo ao abrir o player (antes podia zerar o progresso salvo).
+- Versões de JS e CSS identificadas no HTML para evitar arquivos antigos mantidos pelo navegador.
+- Script `08-VERIFICAR-CORRIGIR-PUBLICAR.ps1` valida UUID D1, salva backup fora do GitHub, aplica esquema, testa, publica Cloudflare e sincroniza o repositório.
+- Os scripts 05 e 07 passam a chamar o procedimento mais seguro, e o 04 exclui backups/bancos locais da sincronização.
+- 32 testes locais aprovados; testes remotos dependem da Cloudflare e das suas credenciais.
 
-# Histórico LISOFLIX
+## v1.3.0 (14/10/2026)
 
-## v1.2.0 — 14/10/2026
-- Recuperação da tabela login_guards ausente em produção; script de esquema remoto sem destruição de registros.
-- Novo banco reactions para avaliações positivas e negativas persistentes por perfil.
-- Sincronização periódica de votos/comentários e atualização das categorias.
-- Separação por tipos, classificação e idioma original (filmes, séries, animes, desenhos).
-- Cartões e setas de navegação ampliados, cabeçalho e banner reequilibrados.
-- Janela de detalhes muito maior e recomendações da mesma categoria.
-- Textos do catálogo sem menção visual ao fornecedor, preservando atribuição obrigatória nos créditos.
-- Testes de login, recuperação de login_guards e votos em SQLite em memória.
+- Diagnóstico do schema D1 e erros amigáveis quando tabelas estão ausentes.
+- Script `05` exporta um backup remoto do D1 antes de aplicar o SQL e publicar o Worker.
+- Script `07` combina correção Cloudflare e atualização GitHub na ordem mais segura.
+- Nova estrutura de fontes autorizadas (`playback_sources`) e progresso (`playback_progress`).
+- Novo player nativo LISOFLIX com volume, linha de reprodução, seek, tela cheia e progresso por perfil.
+- Remoção do iframe externo bloqueado do player principal; fonte não autorizada ou ausente informa indisponibilidade e oferece trailer.
+- Integração TMDB v3/Bearer preservada; mensagens de erro do catálogo mais visíveis e fallback para capas.
+- Navegação por histórico de páginas, detalhes, trailer e reprodução.
+- Ajustes de interface para carrosséis, botões, card de detalhes, player e dispositivos móveis.
+- Retirado o slogan da interface pública e metadados; somente LISOFLIX.
+- 24 testes locais incluindo SQLite, cadastro/login, votos e controle de fontes de vídeo.
 
-# Alterações do LISOFLIX
+## v1.2.1
 
-## 1.1.0 — Identidade visual oficial
+- Correção do tratamento API Key v3 ou token Bearer na variável TMDB_API_KEY.
 
-- Integração das artes LISOFLIX fornecidas pelo criador: símbolo L com play/película e logotipo horizontal 3D.
-- Atualizados cabeçalho, rodapé, janelas de autenticação/perfis, carregamento e selo visual do banner.
-- Favicon, ícones para celular (180/192/512 px) e manifesto para instalação.
-- Novas cores principais de marca: vermelho intenso, laranja e preto metálico.
-- Ajustes responsivos e estado de movimento reduzido.
-- Mantidas integração TMDB via Secret, D1, scripts Cloudflare, contas somente com e-mail/senha e demais funcionalidades anteriores.
-- Script adicional para publicar atualizações mesmo se a nova versão foi extraída sem pasta `.git`.
+## v1.2.0
 
-**Aviso:** O deploy, login real no D1 e streaming externo precisam ser validados na sua conta Cloudflare.
+- Separação de catálogo, curtidas, comentários e primeira correção D1.
+
+## v1.1.0
+
+- Identidade visual LISOFLIX e ícones para navegador e dispositivos.

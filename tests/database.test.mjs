@@ -42,10 +42,15 @@ test('Banco completo e cadastro salvam usuário e primeiro perfil',async()=>{
  const me=await api(env,'/api/auth/me',{},created.cookie);assert.equal(me.data.user.email,'teste@exemplo.com');
  assert.equal(me.data.activeProfile,created.data.profiles[0].id);
 });
-test('Login se recupera de tabela login_guards ausente sem apagar usuário',async()=>{
- const env=makeEnv(true);const reg=await api(env,'/api/auth/register',json({email:'recuperacao@exemplo.com',password:'senha-bem-forte-123'}));
- assert.equal(reg.status,200);
+test('Banco incompleto bloqueia cadastro com aviso e migração restaura acesso',async()=>{
+ const env=makeEnv(true);
  const before=await api(env,'/api/health');assert.ok(before.data.missing.includes('login_guards'));
+ const invalid=await api(env,'/api/auth/register',json({email:'recuperacao@exemplo.com',password:'senha-bem-forte-123'}));
+ assert.equal(invalid.status,503);assert.equal(invalid.data.code,'DATABASE_NOT_READY');
+ env.DB.prepare('CREATE TABLE IF NOT EXISTS login_guards(email_hash TEXT PRIMARY KEY,attempts INTEGER NOT NULL DEFAULT 0,blocked_until INTEGER NOT NULL DEFAULT 0)').run();
+ env.DB={...env.DB}; // Simula novo binding D1 apos migracao/deploy.
+ const reg=await api(env,'/api/auth/register',json({email:'recuperacao@exemplo.com',password:'senha-bem-forte-123'}));
+ assert.equal(reg.status,200);
  const login=await api(env,'/api/auth/login',json({email:'recuperacao@exemplo.com',password:'senha-bem-forte-123'}));
  assert.equal(login.status,200);
  const after=await api(env,'/api/health');assert.equal(after.data.schemaReady,true);
@@ -63,4 +68,19 @@ test('Curtidas e descurtidas persistem por perfil, alternam e não multiplicam v
  assert.equal((await api(env,'/api/reactions',json({type:'movie',id:157336,vote:0}),cookie)).status,200);
  votes=await api(env,'/api/reactions?type=movie&id=157336');assert.equal(votes.data.dislikes,0);
  const invalid=await api(env,'/api/reactions',json({type:'tv',id:10,vote:77}),cookie);assert.equal(invalid.status,400);
+});
+
+test('Player autoriza apenas URLs HTTPS de dominios permitidos e recupera posicao',async()=>{
+ const env=makeEnv();env.MEDIA_ALLOWED_HOSTS='midia.exemplo.com';
+ env.DB.prepare("INSERT INTO playback_sources(media_type,media_id,season,episode,url,mime) VALUES ('movie',157336,0,0,'https://midia.exemplo.com/licenciado.mp4','video/mp4')").run();
+ const src=await api(env,'/api/playback?type=movie&id=157336');assert.equal(src.status,200);assert.equal(src.data.available,true);
+ const account=await api(env,'/api/auth/register',json({email:'player@exemplo.com',password:'senha-segura-1234'}));
+ const watched=await api(env,'/api/watch',json({type:'movie',id:157336,position:120,duration:700,snapshot:{title:'Exemplo'}}),account.cookie);assert.equal(watched.status,200);
+ const continued=await api(env,'/api/playback?type=movie&id=157336',{},account.cookie);assert.equal(continued.data.position,120);
+ env.DB.prepare("UPDATE playback_sources SET url='https://site-nao-autorizado.example/video.mp4' WHERE media_id=157336").run();
+ const blocked=await api(env,'/api/playback?type=movie&id=157336');assert.equal(blocked.data.available,false);
+});
+test('Player sem D1 informa indisponibilidade sem erro interno',async()=>{
+ const env={ASSETS:{fetch:()=>new Response('ok')}};
+ const ans=await api(env,'/api/playback?type=movie&id=157336');assert.equal(ans.status,200);assert.equal(ans.data.available,false);
 });

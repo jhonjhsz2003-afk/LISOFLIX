@@ -25,8 +25,8 @@ test('proteção de origem no envio JSON',async()=>{
  const [s,j]=await api('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://site-atacante.test'},body:'{}'});
  assert.equal(s,403);assert.match(j.error,/Origem/);
 });
-test('comentarios publicos vazios na previsualizacao',async()=>{
- const [s,j]=await api('/api/comments?type=movie&id=157336');assert.equal(s,200);assert.deepEqual(j.comments,[]);
+test('comentarios sem D1 avisam sobre instalacao pendente',async()=>{
+ const [s,j]=await api('/api/comments?type=movie&id=157336');assert.equal(s,503);assert.equal(j.code,'DATABASE_NOT_READY');
 });
 test('servicos estaticos atendidos',async()=>{
  const r=await request('/qualquer');assert.equal(await r.text(),'asset');

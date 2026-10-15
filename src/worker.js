@@ -1,8 +1,18 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
+const APP_VERSION = '1.3.1';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
+const schemaMemo=new WeakMap();
+const CORE_TABLES=['users','profiles','sessions','login_guards','comments','reactions','my_list','watching','catalog_cache','playback_sources','playback_progress'];
+async function databaseHealth(env) {
+ if (!env.DB) return {database:false,schemaReady:false,missing:CORE_TABLES};
+ const cached=schemaMemo.get(env.DB);if(cached&&Date.now()-cached.at<10000)return cached.result;
+ try {const r=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();const names=new Set(r.results.map(x=>x.name));const missing=CORE_TABLES.filter(x=>!names.has(x));const result={database:true,schemaReady:missing.length===0,missing};schemaMemo.set(env.DB,{at:Date.now(),result});return result;}
+ catch(e) {console.warn('D1 unavailable',e?.message);return {database:false,schemaReady:false,missing:CORE_TABLES};}
+}
+async function requireSchema(env) {const h=await databaseHealth(env);return h.schemaReady?null:json({error:'O banco de dados ainda não está pronto. Execute 05-CORRIGIR-D1-E-PUBLICAR.ps1 antes de criar contas.',code:'DATABASE_NOT_READY',missing:h.missing},503);}
 const sections = {
   trending: ['/trending/movie/week', {}],
   trendingseries: ['/trending/tv/week', {}],
@@ -119,7 +129,10 @@ async function tmdb(env,path,params={},cacheSeconds=900) {
   const headers={Accept:'application/json'};
   if(credential.mode==='api_key')u.searchParams.set('api_key',credential.value);
   else headers.Authorization=`Bearer ${credential.value}`;
-  response=await fetch(u.toString(),{headers,cf:{cacheTtl:cacheSeconds,cacheEverything:true}});
+  // Respostas 401/403 nunca devem ficar em cache apos a troca de Secret.
+  // O teste de autenticacao usa cacheSeconds=0 para validar a chave atual.
+  const cachePolicy=cacheSeconds>0?{cf:{cacheEverything:true,cacheTtlByStatus:{'200-299':cacheSeconds,'300-599':0}}}:{};
+  response=await fetch(u.toString(),{headers,...cachePolicy,signal:AbortSignal.timeout(12000)});
   // Se houver dois Secrets cadastrados, a segunda credencial pode funcionar.
   if(response.status!==401||i===creds.length-1)break;
  }
@@ -134,12 +147,19 @@ function demoSection(sec,page=1) {
 async function catalog(env,sec,page=1,force=false) {
  if(!sections[sec])throw Error('Seção inválida');
  if(!tmdbReady(env))return demoSection(sec,page);
- if(!force&&env.DB){const cached=await env.DB.prepare('SELECT payload,expires_at FROM catalog_cache WHERE section=? AND page=?').bind(sec,page).first();if(cached?.expires_at>Date.now())return JSON.parse(cached.payload);}
- const [path,opts]=sections[sec];const payload=await tmdb(env,path,{...opts,page},180);
+ if(!force&&env.DB){try{const cached=await env.DB.prepare('SELECT payload,expires_at FROM catalog_cache WHERE section=? AND page=?').bind(sec,page).first();if(cached?.expires_at>Date.now())return JSON.parse(cached.payload);}catch(e){console.warn('catalog cache not ready',e?.message);}}
+ const [path,opts]=sections[sec];let payload;
+ try{payload=await tmdb(env,path,{...opts,page},180);}
+ catch(e){
+  // Retorna o cache antigo para evitar um catálogo vazio em falhas transitórias,
+  // sem ocultar do frontend que os dados estão desatualizados.
+  if(env.DB){try{const old=await env.DB.prepare('SELECT payload FROM catalog_cache WHERE section=? AND page=?').bind(sec,page).first();if(old?.payload)return {...JSON.parse(old.payload),stale:true,updatedAt:JSON.parse(old.payload).updatedAt};}catch{}}
+  throw e;
+ }
  const type=sectionMedia(sec);
  const results=(payload.results||[]).filter(x=>x.media_type!=='person'&&!x.adult&&!!(x.poster_path||x.backdrop_path)).map(x=>({...x,media_type:x.media_type||type})).filter(x=>matchesSection(sec,x));
  const data={results,page:payload.page,total_pages:payload.total_pages,demo:false,updatedAt:new Date().toISOString()};
- if(env.DB)await env.DB.prepare('INSERT INTO catalog_cache(section,page,payload,expires_at) VALUES (?,?,?,?) ON CONFLICT(section,page) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(sec,page,JSON.stringify(data),Date.now()+180000).run();
+ if(env.DB)try{await env.DB.prepare('INSERT INTO catalog_cache(section,page,payload,expires_at) VALUES (?,?,?,?) ON CONFLICT(section,page) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(sec,page,JSON.stringify(data),Date.now()+180000).run();}catch(e){console.warn('catalog cache write not ready',e?.message);}
  return data;
 }
 function validatedAvatar(input) {return input===''||/^[a-zA-Z0-9_-]+\.(png|webp|jpe?g|gif)$/i.test(input||'') ? input : null;}
@@ -151,11 +171,20 @@ async function handle(req,env) {
   if(origin&&origin!==url.origin)return fail('Origem não autorizada.',403);
   if(!req.headers.get('Content-Type')?.startsWith('application/json'))return fail('Use application/json.',415);
  }
- if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:env.ENABLE_EXTERNAL_EMBEDS==='true',version:'1.2.1'});
+ if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:false,videoMode:'native-licensed',version:APP_VERSION});
+ // Uma verificacao publica que nao mostra credenciais, emails, IDs de conta ou URLs privadas.
+ if(path==='/api/system-check'&&method==='GET'){
+  const db=await databaseHealth(env);let catalogAuth='not-configured';
+  if(tmdbReady(env)){try{await tmdb(env,'/configuration',{},0);catalogAuth='authorized';}
+  catch(e){catalogAuth=e?.message==='TMDB_AUTH_401'?'unauthorized':'unavailable';}}
+  let activeSources=null;
+  if(db.schemaReady){try{const r=await env.DB.prepare('SELECT COUNT(*) AS total FROM playback_sources WHERE enabled=1').first();activeSources=r?.total??0;}catch{}}
+  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-licensed',activeSources,externalEmbedsSupported:false});
+ }
  if(path==='/api/tmdb/check'&&method==='GET'){
   if(!tmdbReady(env))return json({configured:false,authorized:false,error:'Secret de catálogo não configurado.'},503);
   try{
-   await tmdb(env,'/configuration',{},60);
+   await tmdb(env,'/configuration',{},0);
    return json({configured:true,authorized:true});
   }catch(e){
    if(e?.message==='TMDB_AUTH_401')return json({configured:true,authorized:false,error:'O serviço de catálogo recusou as credenciais (401). Confira o tipo e o valor do Secret na Cloudflare.'},502);
@@ -163,12 +192,7 @@ async function handle(req,env) {
   }
  }
  if(path==='/api/health'&&method==='GET') {
-  let schemaReady=false,missing=[];
-  if(env.DB) try {
-    const out=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','profiles','sessions','login_guards','comments','reactions','my_list','watching')").all();
-    const names=new Set(out.results.map(x=>x.name));missing=['users','profiles','sessions','login_guards','comments','reactions','my_list','watching'].filter(x=>!names.has(x));schemaReady=missing.length===0;
-  }catch {missing=['Não foi possível verificar o banco'];}
-  return json({status:'ok',database:!!env.DB,schemaReady,missing,tmdb:!!tmdbReady(env),time:new Date().toISOString()});
+  return json({status:'ok',version:APP_VERSION,...await databaseHealth(env),tmdb:tmdbReady(env),tmdbConfigured:tmdbReady(env),time:new Date().toISOString()});
  }
  if(path==='/api/catalog'&&method==='GET'){
   const sec=url.searchParams.get('section')||'trending',page=Math.max(1,Math.min(5,Number(url.searchParams.get('page'))||1));
@@ -204,8 +228,24 @@ async function handle(req,env) {
   if(!tmdbReady(env))return json({parts:[],demo:true});
   return json(await tmdb(env,`/collection/${id}`,{},1800));
  }
+ if(path==='/api/playback'&&method==='GET') {
+  const type=url.searchParams.get('type'),id=url.searchParams.get('id');
+  if(!safeMedia(type,id))return fail('Título inválido.');
+  const status=await databaseHealth(env);
+  if(!status.schemaReady)return json({available:false,reason:'catalog-only'});
+  const season=Math.max(0,Math.min(100,parseInt(url.searchParams.get('season')||'0',10)||0));
+  const episode=Math.max(0,Math.min(2000,parseInt(url.searchParams.get('episode')||'0',10)||0));
+  const entry=await env.DB.prepare('SELECT url,mime,label FROM playback_sources WHERE media_type=? AND media_id=? AND season=? AND episode=? AND enabled=1 LIMIT 1').bind(type,+id,season,episode).first();
+  if(!entry)return json({available:false,reason:'no-source-configured'});
+  const permitted=(env.MEDIA_ALLOWED_HOSTS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+  let u;try{u=new URL(entry.url);}catch{return json({available:false,reason:'invalid-url'});}
+  if(u.protocol!=='https:'||!permitted.includes(u.hostname.toLowerCase()))return json({available:false,reason:'source-not-allowed'});
+  if(!['video/mp4','video/webm','application/vnd.apple.mpegurl'].includes(entry.mime))return json({available:false,reason:'invalid-format'});
+  const auth=await session(req,env);const progress=auth?.profile_id?await env.DB.prepare('SELECT position_seconds,duration_seconds FROM playback_progress WHERE profile_id=? AND media_type=? AND media_id=? AND season=? AND episode=?').bind(auth.profile_id,type,+id,season,episode).first():null;
+  return json({available:true,url:u.toString(),mime:entry.mime,label:entry.label||'Vídeo',position:progress?.position_seconds||0});
+ }
  if(path==='/api/auth/register'&&method==='POST'){
-  if(!env.DB)return fail('Configure o D1 para criar contas.',503);
+  const databaseError=await requireSchema(env);if(databaseError)return databaseError;
   const b=await bodyJson(req),email=String(b.email||'').trim().toLowerCase(),pw=String(b.password||'');
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>180)return fail('E-mail inválido.');
   if(pw.length<10||pw.length>128)return fail('Use uma senha de 10 a 128 caracteres.');
@@ -218,11 +258,10 @@ async function handle(req,env) {
   return await authResponse(env,req,id,profileId);
  }
  if(path==='/api/auth/login'&&method==='POST'){
-  if(!env.DB)return fail('Configure o D1 para entrar.',503);
+  const databaseError=await requireSchema(env);if(databaseError)return databaseError;
   const b=await bodyJson(req),email=String(b.email||'').toLowerCase().trim();
   if(email.length>180||String(b.password||'').length>128)return fail('E-mail ou senha incorretos.',401);
   const emailHash=await sha256(email);
-  await env.DB.prepare('CREATE TABLE IF NOT EXISTS login_guards (email_hash TEXT PRIMARY KEY,attempts INTEGER NOT NULL DEFAULT 0,blocked_until INTEGER NOT NULL DEFAULT 0)').run();
   const guard=await env.DB.prepare('SELECT attempts,blocked_until FROM login_guards WHERE email_hash=?').bind(emailHash).first();
   if(guard?.blocked_until>Date.now())return fail('Muitas tentativas. Aguarde 15 minutos e tente novamente.',429);
   const u=await env.DB.prepare('SELECT id,password_hash FROM users WHERE email=?').bind(email).first();
@@ -237,6 +276,7 @@ async function handle(req,env) {
   return await authResponse(env,req,u.id);
  }
  if(path==='/api/reactions'&&method==='GET'){
+  const databaseError=await requireSchema(env);if(databaseError)return databaseError;
   const type=url.searchParams.get('type'),id=url.searchParams.get('id');if(!safeMedia(type,id))return fail('Título inválido.');
   if(!env.DB)return json({likes:0,dislikes:0,mine:0});
   const rows=await env.DB.prepare('SELECT vote,COUNT(*) total FROM reactions WHERE media_type=? AND media_id=? GROUP BY vote').bind(type,+id).all();
@@ -245,6 +285,7 @@ async function handle(req,env) {
   return json({likes:rows.results.find(r=>r.vote===1)?.total||0,dislikes:rows.results.find(r=>r.vote===-1)?.total||0,mine:mine?.vote||0});
  }
  if(path==='/api/comments'&&method==='GET'){
+  const databaseError=await requireSchema(env);if(databaseError)return databaseError;
   const type=url.searchParams.get('type'),id=url.searchParams.get('id');if(!safeMedia(type,id))return fail('Título inválido.');
   if(!env.DB)return json({comments:[]});
   const rows=await env.DB.prepare(`SELECT c.id,c.content,c.created_at,p.name,p.avatar FROM comments c
@@ -252,6 +293,7 @@ async function handle(req,env) {
    ORDER BY c.created_at DESC LIMIT 80`).bind(type,+id).all();
   return json({comments:rows.results});
  }
+ if(path.startsWith('/api/auth/')||path.startsWith('/api/profiles')||path.startsWith('/api/library')||path.startsWith('/api/watch')||path.startsWith('/api/comments')||path.startsWith('/api/reactions')){const databaseError=await requireSchema(env);if(databaseError)return databaseError;}
  const s=await session(req,env);
  if(path==='/api/auth/me'&&method==='GET') {
   if(!s)return json({user:null,profiles:[],activeProfile:null});
@@ -306,7 +348,9 @@ async function handle(req,env) {
   const b=await bodyJson(req);if(!safeMedia(b.type,b.id))return fail('Título inválido.');
   const season=Math.max(0,Math.min(100,Number(b.season)||0)),episode=Math.max(0,Math.min(2000,Number(b.episode)||0));
   await env.DB.prepare(`INSERT INTO watching(profile_id,media_type,media_id,season,episode,payload,updated_at) VALUES(?,?,?,?,?,?,datetime('now'))
-    ON CONFLICT(profile_id,media_type,media_id) DO UPDATE SET season=excluded.season,episode=excluded.episode,payload=excluded.payload,updated_at=datetime('now')`).bind(s.profile_id,b.type,+b.id,season,episode,cleanSnapshot(b.snapshot,b.type,b.id)).run();return json({ok:true});
+    ON CONFLICT(profile_id,media_type,media_id) DO UPDATE SET season=excluded.season,episode=excluded.episode,payload=excluded.payload,updated_at=datetime('now')`).bind(s.profile_id,b.type,+b.id,season,episode,cleanSnapshot(b.snapshot,b.type,b.id)).run();
+  if(Number.isFinite(+b.position)&&+b.position>=0){const pos=Math.min(86400,Math.round(+b.position)),dur=Math.max(0,Math.min(86400,Math.round(+b.duration||0)));await env.DB.prepare(`INSERT INTO playback_progress(profile_id,media_type,media_id,season,episode,position_seconds,duration_seconds,updated_at) VALUES (?,?,?,?,?,?,?,datetime('now')) ON CONFLICT(profile_id,media_type,media_id,season,episode) DO UPDATE SET position_seconds=excluded.position_seconds,duration_seconds=excluded.duration_seconds,updated_at=datetime('now')`).bind(s.profile_id,b.type,+b.id,season,episode,pos,dur).run();}
+  return json({ok:true});
  }
  if(path==='/api/reactions'&&method==='POST'){
    const b=await bodyJson(req);if(!safeMedia(b.type,b.id)||![1,-1,0].includes(b.vote))return fail('Avaliação inválida.');
@@ -332,11 +376,12 @@ export default {
   } catch(e) {
    console.error('LISOFLIX API:',e?.message||e);
    const msg=e?.message||'Falha inesperada';
+   if(/no such table|D1_ERROR/i.test(msg))return json({error:'Banco D1 indisponível ou incompleto. Verifique /api/system-check.',code:'DB_SCHEMA_ERROR'},503);
    return fail(msg==='TMDB_NOT_CONFIGURED'?'Configure a chave do catálogo.':msg==='TMDB_AUTH_401'?'A credencial do catálogo foi recusada (401). Verifique o Secret TMDB_API_KEY ou TMDB_BEARER_TOKEN no Worker.':msg,msg==='TMDB_AUTH_401'?502:500);
   }
  },
  async scheduled(event,env,ctx){
-  if(!env.DB)return;
+  if(!(await databaseHealth(env)).schemaReady)return;
   ctx.waitUntil((async()=>{
    await env.DB.prepare('DELETE FROM sessions WHERE expires_at<?').bind(new Date().toISOString()).run();
    try{await env.DB.prepare('DELETE FROM login_guards WHERE blocked_until<? AND attempts=0').bind(Date.now()-86400000).run();}catch(e){console.warn('login_guards pendente de criação',e?.message);}

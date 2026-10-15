@@ -75,3 +75,27 @@ CREATE TABLE IF NOT EXISTS reactions (
  PRIMARY KEY(profile_id,media_type,media_id)
 );
 CREATE INDEX IF NOT EXISTS reactions_media ON reactions(media_type,media_id);
+
+-- v1.3: mídias legalmente disponibilizadas e progresso persistido por perfil.
+CREATE TABLE IF NOT EXISTS playback_sources (
+ media_type TEXT NOT NULL CHECK(media_type IN ('movie','tv')),
+ media_id INTEGER NOT NULL,
+ season INTEGER NOT NULL DEFAULT 0,
+ episode INTEGER NOT NULL DEFAULT 0,
+ url TEXT NOT NULL,
+ mime TEXT NOT NULL CHECK(mime IN ('video/mp4','video/webm','application/vnd.apple.mpegurl')),
+ label TEXT NOT NULL DEFAULT 'Vídeo',
+ enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+ PRIMARY KEY(media_type,media_id,season,episode)
+);
+CREATE TABLE IF NOT EXISTS playback_progress (
+ profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+ media_type TEXT NOT NULL CHECK(media_type IN ('movie','tv')),
+ media_id INTEGER NOT NULL,
+ season INTEGER NOT NULL DEFAULT 0,
+ episode INTEGER NOT NULL DEFAULT 0,
+ position_seconds INTEGER NOT NULL DEFAULT 0,
+ duration_seconds INTEGER NOT NULL DEFAULT 0,
+ updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+ PRIMARY KEY(profile_id,media_type,media_id,season,episode)
+);
