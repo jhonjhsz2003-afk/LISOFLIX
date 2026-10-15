@@ -1,4 +1,4 @@
-**Versão atual: 1.6.1.** Para atualizar um site que já usa o LISOFLIX v1.6.0, comece por `INSTRUCOES-ATUALIZACAO-v1.6.1.md` e use `10-PUBLICAR-CLOUDFLARE.ps1`. Esta atualização não requer aplicar novamente a migração D1.
+**Versão atual: 1.6.2.** Leia `INSTRUCOES-COMPARACAO-ANIMEDRAGON-v1.6.2.md` e use `10-PUBLICAR-CLOUDFLARE.ps1` para atualizar a versão 1.6.1. Nenhuma migração D1 adicional é necessária.
 
 ## v1.5.1 — corrigido em 15/10/2026
 

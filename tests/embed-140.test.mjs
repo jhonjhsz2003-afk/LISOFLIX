@@ -27,6 +27,6 @@ test('episodios autorizados usam IDs e temporada exatos e sandbox bloqueia popup
  const d=mockDB();d.prepare("INSERT INTO playback_embeds(media_type,media_id,season,episode,provider,mode) VALUES ('tv',114472,1,2,'embedmovies','standard')").run();
  const v=await req({DB:d,ENABLE_EXTERNAL_EMBEDS:'true'},'/api/playback?type=tv&id=114472&season=1&episode=2');
  assert.equal(v.value.url,'https://myembed.biz/serie/114472/1/2');
- const ui=txt('public/app.js');assert.match(ui,/sandbox=\"allow-scripts allow-same-origin allow-presentation\"/);assert.doesNotMatch(ui,/allow-popups/);
+ const ui=txt('public/app.js');assert.match(ui,/sandbox=\"allow-scripts allow-same-origin allow-forms allow-presentation\"/);assert.doesNotMatch(ui,/allow-popups/);
  assert.match(txt('public/_headers'),/frame-src.*https:\/\/myembed\.biz/);
 });

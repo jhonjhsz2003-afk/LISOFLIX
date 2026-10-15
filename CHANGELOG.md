@@ -1,3 +1,13 @@
+## 1.6.2 — reprodução de séries inspirada no AnimeDragon
+
+- Uso de ID TMDB/temporada/episódio para a montagem da URL documentada do EmbedMovies.
+- Registro de série autorizada (temporada 0, episódio 0) permite abrir seus episódios sem cadastrar cada um.
+- Registro de episódio específico desativado prevalece e impede exibição desse episódio.
+- Botão Assistir em série escolhe primeiro episódio existente, sem tentar episódio 0.
+- Iframe com prioridade alta de carregamento e sandbox restrito, sem popups.
+- Testes específicos da diferença entre fonte cadastrada e reprodução realmente confirmada.
+- Banco D1, contas e comentários preservados; não há migração nesta versão.
+
 ## 1.6.1 — grade responsiva e gêneros de anime
 - Capas de gênero e idioma maiores (5 desktop / 4 laptop / 3 tablet / 2 mobile), formato panorâmico 16:9.
 - Filtro de gêneros em Animes com séries e longas japoneses; filtros de Filmes e Séries excluem animações.

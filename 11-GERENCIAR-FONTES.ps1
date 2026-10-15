@@ -16,12 +16,20 @@ function NeedOk([string]$message) {
   $reply = (Read-Host "$message (digite SIM para confirmar)").Trim()
   if ($reply.ToUpperInvariant() -cne 'SIM') { throw 'Operacao cancelada. Nenhum dado foi alterado.' }
 }
-function MediaDetails {
+function MediaDetails([switch]$AllowWholeSeries) {
   $type = (Read-Host 'Tipo [movie/tv]').Trim().ToLowerInvariant()
   if ($type -notin @('movie','tv')) { throw 'Digite movie para filme ou tv para episodio.' }
   $id = UInt 'ID TMDB do titulo' 1 99999999
   $season=0; $episode=0
-  if ($type -eq 'tv') { $season=UInt 'Numero da temporada' 1 100; $episode=UInt 'Numero do episodio' 1 2000 }
+  if ($type -eq 'tv') {
+    if($AllowWholeSeries){
+      Write-Host 'Para autorizar toda a serie, digite SIM. O endereco real sempre usara temporada/episodio escolhido no site.' -ForegroundColor Yellow
+      $whole=(Read-Host 'Autorizar TODOS os episodios desta serie? [SIM/NAO]').Trim().ToUpperInvariant()
+      if($whole -notin @('SIM','NAO')){throw 'Responda SIM ou NAO.'}
+      if($whole -eq 'SIM'){return @{type=$type;id=$id;season=0;episode=0}}
+    }
+    $season=UInt 'Numero da temporada' 1 100; $episode=UInt 'Numero do episodio' 1 2000
+  }
   return @{type=$type;id=$id;season=$season;episode=$episode}
 }
 function ValidateCurrentAccount {
@@ -91,7 +99,7 @@ try {
     Write-Host "`n==== LISOFLIX | Gerenciar fontes autorizadas ====" -ForegroundColor Cyan
     Write-Host '1 - Listar fontes cadastradas (sem mostrar URLs)'
     Write-Host '2 - Cadastrar ou atualizar VIDEO NATIVO autorizado'
-    Write-Host '3 - Cadastrar ou atualizar EMBED com permissao de exibicao'
+    Write-Host '3 - Cadastrar EMBED de filme, episodio ou serie inteira com permissao'
     Write-Host '4 - Desativar uma fonte'
     Write-Host '0 - Sair'
     $choice = (Read-Host 'Opcao').Trim()
@@ -117,7 +125,7 @@ try {
         ExecuteSQL "INSERT INTO playback_sources(media_type,media_id,season,episode,url,mime,label,enabled) VALUES ($(SqlText $m.type),$($m.id),$($m.season),$($m.episode),$(SqlText $url),$(SqlText $mime),$(SqlText $label),1) ON CONFLICT(media_type,media_id,season,episode) DO UPDATE SET url=excluded.url,mime=excluded.mime,label=excluded.label,enabled=1"
       }
       '3' {
-        $m=MediaDetails
+        $m=MediaDetails -AllowWholeSeries
         $mode=(Read-Host 'Modo [standard]').Trim().ToLowerInvariant()
         if($mode -notin @('standard')){throw 'Modo invalido.'}
         $label=(Read-Host 'Nome do player (ate 70 caracteres)').Trim()
@@ -129,9 +137,9 @@ try {
         ExecuteSQL "INSERT INTO playback_embeds(media_type,media_id,season,episode,provider,mode,label,enabled) VALUES ($(SqlText $m.type),$($m.id),$($m.season),$($m.episode),'embedmovies',$(SqlText $mode),$(SqlText $label),1) ON CONFLICT(media_type,media_id,season,episode) DO UPDATE SET provider=excluded.provider,mode=excluded.mode,label=excluded.label,enabled=1"
       }
       '4' {
-        $m=MediaDetails
         $kind=(Read-Host 'Desativar [nativo/externo]').Trim().ToLowerInvariant()
         if($kind -notin @('nativo','externo')){throw 'Tipo invalido.'}
+        $m=if($kind -eq 'externo'){MediaDetails -AllowWholeSeries}else{MediaDetails}
         $table=if($kind -eq 'nativo'){'playback_sources'}else{'playback_embeds'}
         NeedOk "Desativar fonte $kind do titulo $($m.id)?"
         BackupOnce

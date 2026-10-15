@@ -40,7 +40,7 @@ test('Player EmbedMovies possui controles seguros de recarga e suporte ao format
  const ui=read('public/app.js');const workerCode=read('src/worker.js');
  assert.match(ui,/data-action="retryembed"/);
  assert.match(ui,/encrypted-media/);
- assert.match(ui,/sandbox="allow-scripts allow-same-origin allow-presentation"/);
+ assert.match(ui,/sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"/);
  assert.match(workerCode,/https:\/\/myembed\.biz\/filme\/\$\{id\}/);
  assert.match(workerCode,/https:\/\/myembed\.biz\/serie\/\$\{id\}\/\$\{season\}\/\$\{episode\}/);
 });
