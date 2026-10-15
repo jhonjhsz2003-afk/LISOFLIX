@@ -1,4 +1,19 @@
-# LISOFLIX v1.5.0 — gerenciamento de fontes
+## v1.5.1 — corrigido em 15/10/2026
+
+- O gerenciador `11-GERENCIAR-FONTES.ps1` identifica o banco por **UUID** (nao por nome). Se o nome remoto for diferente, informa o fato e usa o binding `DB` para consultas e atualizacoes.
+- Agora a opcao **1** mostra as linhas de fontes autorizadas ou a mensagem **Nenhuma fonte cadastrada**. URLs privadas nunca aparecem.
+- Confirma `sim` e `SIM` sem diferenca; grava apenas com autorizacao explicita. Backup obrigatorio antes de ALTERAR registros, salvo fora do GitHub.
+- `10-PUBLICAR-CLOUDFLARE.ps1` verifica UUID remoto e solicita confirmacao da conta ANTES de backup, migracao e deploy. **Nao publique de uma conta errada.**
+- `12-VERIFICAR-PLAYER.ps1` faz diagnostico **somente leitura** do D1 e opcionalmente das APIs publicas. Nao altera fontes, contas ou segredos.
+- **Sem fonte de video autorizada cadastrada, o player continua indisponivel.** Iframe nao garante que o fornecedor permita incorporacao e nao possibilita controlar o video interno ou bloquear todos os anuncios.
+
+**Endereco de producao usado nos testes anteriores:** `https://lisoflix.jjszjhon.workers.dev` — nao confundir com URLs Workers antigas de outra conta. Confirme o endereco exibido pelo seu deploy atual.
+
+**Instalacao:** para atualizar apenas o GitHub, execute `09-ATUALIZAR-GITHUB.ps1` na pasta extraida. Para fazer deploy do Worker, execute `10-PUBLICAR-CLOUDFLARE.ps1` e confira a conta e o UUID exibidos. Para consultar fontes, execute `11-GERENCIAR-FONTES.ps1` e escolha 1. Para diagnostico somente leitura, use `12-VERIFICAR-PLAYER.ps1`.
+
+---
+
+# LISOFLIX v1.5.1 — gerenciamento de fontes corrigido
 
 Esta versão **não cria filmes para reprodução automaticamente**. A API de catálogo retorna informações, capas e trailers; reproduções completas só funcionam quando houver uma fonte de vídeo autorizada cadastrada, com URL HTTPS permitida para o player nativo ou um embed que o titular permita incorporar. A existência de um iframe de terceiros não assegura licença de exibição nem sua disponibilidade.
 
@@ -27,7 +42,7 @@ Esta versão **não cria filmes para reprodução automaticamente**. A API de ca
 
 - **GitHub:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\09-ATUALIZAR-GITHUB.ps1"`. O script atualiza `jhonjhsz2003-afk/LISOFLIX` sem force push; caso o `database_id` do GitHub seja diferente, exige confirmação.
 - **Cloudflare:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\10-PUBLICAR-CLOUDFLARE.ps1"`. Confirma conta e UUID remoto, faz backup e executa testes, migração não destrutiva e deploy. Nunca cole o token TMDB no código.
-- Confirme a versão em `/api/config` (**1.5.0**), a estrutura do D1 em `/api/health` (`schemaReady: true`) e os números de fontes em `/api/system-check`.
+- Confirme a versão em `/api/config` (**1.5.1**), a estrutura do D1 em `/api/health` (`schemaReady: true`) e os números de fontes em `/api/system-check`.
 
 As instruções anteriores da documentação permanecem abaixo para referência. Os passos específicos desta seção prevalecem sobre os procedimentos de versões antigas.
 

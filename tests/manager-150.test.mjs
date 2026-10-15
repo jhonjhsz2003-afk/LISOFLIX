@@ -14,7 +14,7 @@ test('system-check separa videos nativos e players externos sem divulgar URLs',a
  sqlite.prepare("INSERT INTO playback_sources(media_type,media_id,url,mime) VALUES ('movie', 100, 'https://media.example.com/one.mp4', 'video/mp4')").run();
  sqlite.prepare("INSERT INTO playback_embeds(media_type,media_id,provider,mode) VALUES ('movie',200,'multiembed','standard')").run();
  const result=await get({DB,ENABLE_EXTERNAL_EMBEDS:'true'},'/api/system-check');
- assert.equal(result.status,200);assert.equal(result.data.version,'1.5.0');
+ assert.equal(result.status,200);assert.equal(result.data.version,'1.5.1');
  assert.equal(result.data.activeSources,1);assert.equal(result.data.activeEmbeds,1);
  assert.equal(result.data.externalEmbedsEnabled,true);
  assert.doesNotMatch(JSON.stringify(result.data),/media\.example\.com/);
@@ -32,6 +32,11 @@ test('gestor verifica a conta, faz backup externo e nao distribui fontes automat
  const manager=text('11-GERENCIAR-FONTES.ps1');
  assert.match(manager,/wrangler whoami/);
  assert.match(manager,/wrangler d1 list --json/);
+ assert.match(manager,/uuidConfig/);
+ assert.match(manager,/databaseTarget = 'DB'/);
+ assert.match(manager,/--json/);
+ assert.match(manager,/Nenhuma fonte cadastrada/);
+ assert.match(manager,/ToUpperInvariant/);
  assert.match(manager,/LOCALAPPDATA/);
  assert.match(manager,/BackupOnce/);
  assert.match(manager,/autorizacao|direitos/i);

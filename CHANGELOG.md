@@ -1,3 +1,13 @@
+## v1.5.1 — Gerenciador D1 e diagnostico
+
+- Correcao de identificacao do banco pelo UUID, evitando falha falsa por nome diferente.
+- Confirmacao sem distincao entre sim/SIM; visualizacao de linhas do D1 com Wrangler `--json`.
+- Backup D1 antes de qualquer cadastro/alteracao de fonte e sem incluir arquivos privados no GitHub.
+- Script de deploy com validacao de UUID, sem mudar bancos de contas.
+- Script de verificacao da configuracao das fontes, somente leitura.
+- Versao do Worker e cache-bust atualizados para 1.5.1.
+- Nenhum embed adicionado automaticamente; fonte exige autorizacao e registro por titulo.
+
 # LISOFLIX — histórico de mudanças
 
 ## v1.5.0 — Cadastro guiado de fontes
