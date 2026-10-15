@@ -1,4 +1,4 @@
-# LISOFLIX 1.5.1 | proteger dados D1, migrar esquema e publicar site.
+# LISOFLIX 1.6.0 | proteger dados D1, migrar esquema e publicar site.
 $ErrorActionPreference='Stop'
 if (-not $PSScriptRoot) {throw 'Execute o arquivo PS1, nao cole seu conteudo no terminal.'}
 Set-Location -LiteralPath $PSScriptRoot
@@ -28,6 +28,11 @@ try {
  $dump=Join-Path $dest ('lisoflix-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'.sql')
  Run 'npx.cmd' @('wrangler','d1','export',$bankName,'--remote',"--output=$dump")
  if(-not (Test-Path $dump) -or (Get-Item $dump).Length -lt 10){throw 'Backup D1 ausente. Interrompido.'}
+ Write-Host 'AVISO: a proxima etapa REMOVE CADASTROS ANTIGOS de SuperEmbed e os antigos hashes de PIN de PERFIL; senhas das contas permanecem.' -ForegroundColor Yellow
+ $cleanup=(Read-Host 'Backup pronto. Para limpar a tabela antiga de embeds, digite LIMPAR').Trim()
+ if($cleanup -cne 'LIMPAR'){throw 'Publicacao interrompida antes da migracao. O backup foi salvo.'}
+ Run 'npx.cmd' @('wrangler','d1','execute','DB','--remote','--file=./migrations/0002-limpar-embeds-antigos.sql','--yes')
+ Run 'npx.cmd' @('wrangler','d1','execute','DB','--remote','--file=./migrations/0003-remover-pin-perfis.sql','--yes')
  Run 'npx.cmd' @('wrangler','d1','execute','DB','--remote','--file=./schema.sql','--yes')
  Run 'npm.cmd' @('test')
  Run 'npx.cmd' @('wrangler','deploy')

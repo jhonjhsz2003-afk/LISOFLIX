@@ -1,3 +1,21 @@
+# LISOFLIX 1.6.0 (preparado, não publicado)
+
+- Remove os atalhos duplicados "Tudo / Filmes / Séries / Animes / Desenhos / Bombando" da tela inicial. Navegação principal continua.
+- A seta de voltar fica oculta no Início.
+- Reorganiza os controles de carrossel em botões pequenos sobre as capas.
+- Busca com sugestões enquanto o visitante digita (sem esperar Enter); o catálogo remoto exige conexão.
+- Nova seleção de gêneros em Filmes e Séries; consultas paginadas em idiomas, desenhos e animes.
+- Novas categorias de doramas, séries de ficção e animações; hero intercala destaques de filmes, séries e animes.
+- Envia um snapshot reduzido de filmes para Minha Lista e histórico; evita erro de requisição grande.
+- Exibe editar/excluir somente nos comentários do próprio perfil e valida a propriedade também no D1.
+- Remove criação/edição/verificação de PIN do perfil (senha da conta principal preservada). Se houver um único perfil, entra automaticamente ao fazer login.
+- Remove integração do SuperEmbed e prepara fontes explicitamente autorizadas do EmbedMovies. Não disponibiliza mídia sem fonte cadastrada nem garante funcionamento de iframes externos.
+- Migração explícita da tabela playback_embeds e limpeza dos antigos PINs dos perfis, somente após confirmação e backup. Não altera contas, senhas principais ou comentários.
+- Catálogo atualizado por cache e consulta periódica; NÃO garante push em tempo real do TMDB ou de providers de vídeo.
+
+## Publicação
+Execute npm test antes de atualizar GitHub ou Cloudflare. O script de Cloudflare salva backup remoto em LOCALAPPDATA e exige as confirmações SIM e LIMPAR. Faça upload do pacote completo ao repositório correto, nunca do backup D1.
+
 ## v1.5.1 — Gerenciador D1 e diagnostico
 
 - Correcao de identificacao do banco pelo UUID, evitando falha falsa por nome diferente.

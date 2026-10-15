@@ -12,9 +12,9 @@ async function get(env,path){const response=await worker.fetch(new Request('http
 test('system-check separa videos nativos e players externos sem divulgar URLs',async()=>{
  const {sqlite,DB}=dbMock();
  sqlite.prepare("INSERT INTO playback_sources(media_type,media_id,url,mime) VALUES ('movie', 100, 'https://media.example.com/one.mp4', 'video/mp4')").run();
- sqlite.prepare("INSERT INTO playback_embeds(media_type,media_id,provider,mode) VALUES ('movie',200,'multiembed','standard')").run();
+ sqlite.prepare("INSERT INTO playback_embeds(media_type,media_id,provider,mode) VALUES ('movie',200,'embedmovies','standard')").run();
  const result=await get({DB,ENABLE_EXTERNAL_EMBEDS:'true'},'/api/system-check');
- assert.equal(result.status,200);assert.equal(result.data.version,'1.5.1');
+ assert.equal(result.status,200);assert.equal(result.data.version,'1.6.0');
  assert.equal(result.data.activeSources,1);assert.equal(result.data.activeEmbeds,1);
  assert.equal(result.data.externalEmbedsEnabled,true);
  assert.doesNotMatch(JSON.stringify(result.data),/media\.example\.com/);
@@ -22,7 +22,7 @@ test('system-check separa videos nativos e players externos sem divulgar URLs',a
 test('titulo sem fonte retorna indisponivel; fonte aprovada requer cadastro explicito',async()=>{
  const {sqlite,DB}=dbMock();
  assert.equal((await get({DB,ENABLE_EXTERNAL_EMBEDS:'true'},'/api/playback?type=movie&id=900')).data.available,false);
- sqlite.prepare("INSERT INTO playback_embeds(media_type,media_id,provider,mode) VALUES ('movie',900,'multiembed','standard')").run();
+ sqlite.prepare("INSERT INTO playback_embeds(media_type,media_id,provider,mode) VALUES ('movie',900,'embedmovies','standard')").run();
  const ready=await get({DB,ENABLE_EXTERNAL_EMBEDS:'true'},'/api/playback?type=movie&id=900');
  assert.equal(ready.data.available,true);assert.equal(ready.data.mode,'iframe');
  sqlite.prepare("UPDATE playback_embeds SET enabled=0 WHERE media_type='movie' AND media_id=900").run();

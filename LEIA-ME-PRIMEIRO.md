@@ -157,10 +157,10 @@ O ZIP `se_player(1).zip` contém **um arquivo PHP** que chama `https://getsupere
 
 ```sql
 INSERT OR REPLACE INTO playback_embeds(media_type,media_id,season,episode,provider,mode,label,enabled)
-VALUES ('movie',123456,0,0,'multiembed','standard','Player autorizado',1);
+VALUES ('movie',123456,0,0,'embedmovies','standard','Player autorizado',1);
 ```
 
-Para episódios, use `media_type='tv'`, `season` e `episode` reais; o `mode` pode ser `vip` para tentar a variante documentada `/directstream.php`, sem garantia de resposta.
+Para episódios, use `media_type='tv'`, `season` e `episode` reais; utilize `mode='standard'`; incorporações só devem ser registradas com direitos de exibição válidos.
 
 O backend monta links com `video_id`, `tmdb=1` e, para episódios, `s` e `e`, sem aceitar URL arbitrária vinda da interface. O iframe usa sandbox **sem** `allow-popups` e **sem** permissão de navegação de nível superior. Alguns provedores podem não funcionar sob essa proteção. O usuário não recebe controles falsos para vídeos externos: barra de tempo, idioma, áudio e legendas são de responsabilidade do próprio fornecedor. Progresso exato só está disponível no player nativo, a menos que o fornecedor ofereça uma API formal e autorizada.
 

@@ -1,7 +1,7 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.6.0';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
@@ -19,9 +19,14 @@ const sections = {
   movies: ['/discover/movie', {without_genres:'16',sort_by:'popularity.desc',include_adult:'false'}],
   series: ['/discover/tv', {without_genres:'16',sort_by:'popularity.desc',include_adult:'false'}],
   anime: ['/discover/tv', {with_genres:'16',with_original_language:'ja',sort_by:'popularity.desc',include_adult:'false'}],
+  animenew: ['/discover/tv', {with_genres:'16',with_original_language:'ja',sort_by:'first_air_date.desc',include_adult:'false'}],
   animefilms: ['/discover/movie', {with_genres:'16',with_original_language:'ja',sort_by:'popularity.desc',include_adult:'false'}],
   cartoons: ['/discover/tv', {with_genres:'16',without_original_language:'ja',sort_by:'popularity.desc',include_adult:'false'}],
+  cartoonnew: ['/discover/tv', {with_genres:'16',without_original_language:'ja',sort_by:'first_air_date.desc',include_adult:'false'}],
   cartoonfilms: ['/discover/movie', {with_genres:'16',without_original_language:'ja',sort_by:'popularity.desc',include_adult:'false'}],
+  dorama: ['/discover/tv', {with_original_language:'ko',without_genres:'16',sort_by:'popularity.desc',include_adult:'false'}],
+  scifiseries: ['/discover/tv', {with_genres:'10765',without_genres:'16',sort_by:'popularity.desc',include_adult:'false'}],
+  crimeseries: ['/discover/tv', {with_genres:'80',without_genres:'16',sort_by:'popularity.desc',include_adult:'false'}],
   upcoming: ['/movie/upcoming', {region:'BR'}],
   airing: ['/tv/on_the_air', {}],
   topmovies: ['/discover/movie', {without_genres:'16',sort_by:'vote_average.desc','vote_count.gte':350,include_adult:'false'}],
@@ -36,12 +41,10 @@ const sections = {
 // Iframes de fontes explicitamente cadastradas (sem executar PHP ou acessar URLs arbitrárias).
 function iframeFeatureEnabled(env) {return String(env.ENABLE_EXTERNAL_EMBEDS||'').toLowerCase()==='true';}
 function licensedEmbedUrl(type,id,season,episode,mode='standard') {
- if(!safeMedia(type,id)||!['standard','vip'].includes(mode))return null;
+ if(!safeMedia(type,id)||mode!=='standard')return null;
  if(type==='tv'&&(!Number.isInteger(season)||season<1||!Number.isInteger(episode)||episode<1))return null;
- const u=new URL(mode==='vip'?'https://multiembed.mov/directstream.php':'https://multiembed.mov/');
- u.searchParams.set('video_id',String(id));u.searchParams.set('tmdb','1');
- if(type==='tv'){u.searchParams.set('s',String(season));u.searchParams.set('e',String(episode));}
- return u.href;
+ // Endereço publicado pelo fornecedor, somente para títulos explicitamente autorizados no D1.
+ return type==='movie'?`https://myembed.biz/filme/${id}`:`https://myembed.biz/serie/${id}/${season}/${episode}`;
 }
 
 const movieSections = new Set(['trending','movies','animefilms','cartoonfilms','upcoming','topmovies','action','romance','scifi','family','horror']);
@@ -50,9 +53,9 @@ function isAnimation(row) { return (row.genre_ids || []).includes(16); }
 function matchesSection(section, row) {
  const type = row.media_type || sectionMedia(section);
  if (type !== sectionMedia(section)) return false;
- if (['anime','animefilms'].includes(section)) return isAnimation(row) && row.original_language === 'ja';
- if (['cartoons','cartoonfilms'].includes(section)) return isAnimation(row) && row.original_language !== 'ja';
- if (['series','topseries','trendingseries','airing','movies','topmovies','trending','family'].includes(section)) return !isAnimation(row);
+ if (['anime','animenew','animefilms'].includes(section)) return isAnimation(row) && row.original_language === 'ja';
+ if (['cartoons','cartoonnew','cartoonfilms'].includes(section)) return isAnimation(row) && row.original_language !== 'ja';
+ if (['series','topseries','trendingseries','airing','dorama','scifiseries','crimeseries','movies','topmovies','trending','family'].includes(section)) return !isAnimation(row);
  return true;
 }
 
@@ -94,7 +97,7 @@ async function session(req, env) {
  return await env.DB.prepare(`SELECT s.user_id,s.profile_id,u.email FROM sessions s JOIN users u ON u.id=s.user_id
  WHERE s.id_hash=? AND s.expires_at>?`).bind(await sha256(token),new Date().toISOString()).first();
 }
-function profileSafe(p) {return {id:p.id,name:p.name,avatar:p.avatar,isKids:!!p.is_kids,locked:!!p.pin_hash};}
+function profileSafe(p) {return {id:p.id,name:p.name,avatar:p.avatar,isKids:!!p.is_kids};}
 async function profiles(env,userId) {return (await env.DB.prepare('SELECT * FROM profiles WHERE user_id=? ORDER BY created_at').bind(userId).all()).results.map(profileSafe);}
 async function authResponse(env,req,userId,profileId=null) {
  const token=secretToken();const hash=await sha256(token);
@@ -221,15 +224,17 @@ async function handle(req,env) {
  }
  if(path==='/api/discover'&&method==='GET') {
   const type=url.searchParams.get('type')==='movie'?'movie':'tv';
-  const lang=(url.searchParams.get('lang')||'en').toLowerCase();
-  if(!/^[a-z]{2}$/.test(lang))return fail('Idioma inválido.');
+  const lang=(url.searchParams.get('lang')||'').toLowerCase();
+  const genre=url.searchParams.get('genre')||'';
+  if(lang&&!/^[a-z]{2}$/.test(lang))return fail('Idioma inválido.');
+  if(genre&&!/^[0-9]{1,6}$/.test(genre))return fail('Gênero inválido.');
   if(!tmdbReady(env))return json({results:DEMO.filter(x=>x.media_type===type),demo:true});
-  const d=await tmdb(env,`/discover/${type}`,{with_original_language:lang,sort_by:'popularity.desc',include_adult:'false',page:Math.max(1,Math.min(5,+url.searchParams.get('page')||1))},600);
+  const d=await tmdb(env,`/discover/${type}`,{...(lang?{with_original_language:lang}:{}),...(genre?{with_genres:genre}:{}),sort_by:'popularity.desc',include_adult:'false',page:Math.max(1,Math.min(5,+url.searchParams.get('page')||1))},600);
   return json({results:(d.results||[]).filter(x=>x.poster_path).map(x=>({...x,media_type:type})),demo:false});
  }
  if(path==='/api/search'&&method==='GET') {
   const q=(url.searchParams.get('q')||'').trim().slice(0,100);
-  if(q.length<2)return json({results:[],demo:!tmdbReady(env)});
+  if(q.length<1)return json({results:[],demo:!tmdbReady(env)});
   if(!tmdbReady(env))return json({results:DEMO.filter(x=>(x.name||x.title).toLocaleLowerCase('pt-BR').includes(q.toLocaleLowerCase('pt-BR'))),demo:true});
   const result=await tmdb(env,'/search/multi',{query:q,include_adult:'false',page:1},150);
   return json({results:(result.results||[]).filter(x=>['tv','movie'].includes(x.media_type)&&x.poster_path),demo:false});
@@ -262,7 +267,7 @@ async function handle(req,env) {
    // explicitamente cadastrada para cada filme ou episódio no D1.
    if(!iframeFeatureEnabled(env))return json({available:false,reason:'no-source-configured'});
    const embed=await env.DB.prepare(`SELECT provider,mode,label FROM playback_embeds WHERE media_type=? AND media_id=? AND season=? AND episode=? AND enabled=1 LIMIT 1`).bind(type,+id,season,episode).first();
-   if(!embed||embed.provider!=='multiembed')return json({available:false,reason:'no-source-configured'});
+   if(!embed||embed.provider!=='embedmovies')return json({available:false,reason:'no-source-configured'});
    const embedUrl=licensedEmbedUrl(type,+id,season,episode,embed.mode);
    if(!embedUrl)return json({available:false,reason:'invalid-embed'});
    return json({available:true,mode:'iframe',url:embedUrl,label:embed.label||'Player externo',external:true,customControls:false});
@@ -303,7 +308,7 @@ async function handle(req,env) {
    return fail('E-mail ou senha incorretos.',401);
   }
   await env.DB.prepare('DELETE FROM login_guards WHERE email_hash=?').bind(emailHash).run();
-  return await authResponse(env,req,u.id);
+  const ps=await profiles(env,u.id);return await authResponse(env,req,u.id,ps.length===1?ps[0].id:null);
  }
  if(path==='/api/reactions'&&method==='GET'){
   const databaseError=await requireSchema(env);if(databaseError)return databaseError;
@@ -318,16 +323,16 @@ async function handle(req,env) {
   const databaseError=await requireSchema(env);if(databaseError)return databaseError;
   const type=url.searchParams.get('type'),id=url.searchParams.get('id');if(!safeMedia(type,id))return fail('Título inválido.');
   if(!env.DB)return json({comments:[]});
-  const rows=await env.DB.prepare(`SELECT c.id,c.content,c.created_at,p.name,p.avatar FROM comments c
+  const rows=await env.DB.prepare(`SELECT c.id,c.content,c.created_at,c.profile_id,p.name,p.avatar FROM comments c
    JOIN profiles p ON p.id=c.profile_id WHERE c.media_type=? AND c.media_id=?
    ORDER BY c.created_at DESC LIMIT 80`).bind(type,+id).all();
-  return json({comments:rows.results});
+  const auth=await session(req,env);return json({comments:rows.results.map(({profile_id,...c})=>({...c,mine:!!auth?.profile_id&&auth.profile_id===profile_id}))});
  }
  if(path.startsWith('/api/auth/')||path.startsWith('/api/profiles')||path.startsWith('/api/library')||path.startsWith('/api/watch')||path.startsWith('/api/comments')||path.startsWith('/api/reactions')){const databaseError=await requireSchema(env);if(databaseError)return databaseError;}
  const s=await session(req,env);
  if(path==='/api/auth/me'&&method==='GET') {
   if(!s)return json({user:null,profiles:[],activeProfile:null});
-  return json({user:{email:s.email},profiles:await profiles(env,s.user_id),activeProfile:s.profile_id});
+  const ps=await profiles(env,s.user_id);let selected=s.profile_id;if(!selected&&ps.length===1){selected=ps[0].id;const tok=fromCookie(req,'lisoflix_session');await env.DB.prepare('UPDATE sessions SET profile_id=? WHERE id_hash=?').bind(selected,await sha256(tok)).run();}return json({user:{email:s.email},profiles:ps,activeProfile:selected});
  }
  if(path==='/api/auth/logout'&&method==='POST') {
   const token=fromCookie(req,'lisoflix_session');if(token&&env.DB)await env.DB.prepare('DELETE FROM sessions WHERE id_hash=?').bind(await sha256(token)).run();
@@ -338,26 +343,23 @@ async function handle(req,env) {
  if(path==='/api/profiles'&&method==='POST'){
   const count=await env.DB.prepare('SELECT COUNT(*) n FROM profiles WHERE user_id=?').bind(s.user_id).first();if(count.n>=5)return fail('Limite de 5 perfis.',409);
   const b=await bodyJson(req),name=String(b.name||'').trim().slice(0,24),avatar=validatedAvatar(b.avatar||'');if(!name||avatar===null)return fail('Nome ou avatar inválido.');
-  const id=randomId();await env.DB.prepare('INSERT INTO profiles(id,user_id,name,avatar,is_kids,pin_hash) VALUES(?,?,?,?,?,?)').bind(id,s.user_id,name,avatar,b.isKids?1:0,b.pin&&/^\d{4,8}$/.test(b.pin)?await createHash(b.pin):null).run();
+  const id=randomId();await env.DB.prepare('INSERT INTO profiles(id,user_id,name,avatar,is_kids,pin_hash) VALUES(?,?,?,?,?,?)').bind(id,s.user_id,name,avatar,b.isKids?1:0,null).run();
   return json({ok:true,profiles:await profiles(env,s.user_id)});
  }
  if(path==='/api/profiles/select'&&method==='POST'){
   const b=await bodyJson(req),p=await env.DB.prepare('SELECT * FROM profiles WHERE id=? AND user_id=?').bind(String(b.id||''),s.user_id).first();if(!p)return fail('Perfil não encontrado.',404);
-  if(p.pin_hash&&!await verifyHash(String(b.pin||''),p.pin_hash))return fail('PIN incorreto.',403);
+  
   const token=fromCookie(req,'lisoflix_session');await env.DB.prepare('UPDATE sessions SET profile_id=? WHERE id_hash=?').bind(p.id,await sha256(token)).run();return json({ok:true,activeProfile:p.id});
  }
  if(path==='/api/profiles/update'&&method==='POST'){
   const b=await bodyJson(req),p=await env.DB.prepare('SELECT * FROM profiles WHERE id=? AND user_id=?').bind(String(b.id||''),s.user_id).first();if(!p)return fail('Perfil não encontrado.',404);
-  if(p.pin_hash&&!await verifyHash(String(b.currentPin||''),p.pin_hash))return fail('PIN atual incorreto.',403);
+  
   const avatar=validatedAvatar(b.avatar??p.avatar),name=String(b.name??p.name).trim().slice(0,24);if(!name||avatar===null)return fail('Nome ou avatar inválido.');
-  let hash=p.pin_hash;
-  if(b.removePin)hash=null;
-  else if(b.newPin){if(!/^\d{4,8}$/.test(String(b.newPin)))return fail('O PIN precisa ter de 4 a 8 dígitos.');hash=await createHash(String(b.newPin));}
-  await env.DB.prepare('UPDATE profiles SET name=?,avatar=?,is_kids=?,pin_hash=? WHERE id=?').bind(name,avatar,b.isKids?1:0,hash,p.id).run();return json({ok:true,profiles:await profiles(env,s.user_id)});
+  await env.DB.prepare('UPDATE profiles SET name=?,avatar=?,is_kids=?,pin_hash=NULL WHERE id=?').bind(name,avatar,b.isKids?1:0,p.id).run();return json({ok:true,profiles:await profiles(env,s.user_id)});
  }
  if(path==='/api/profiles/delete'&&method==='POST'){
   const b=await bodyJson(req),p=await env.DB.prepare('SELECT * FROM profiles WHERE id=? AND user_id=?').bind(String(b.id||''),s.user_id).first();if(!p)return fail('Perfil não encontrado.',404);
-  if(p.pin_hash&&!await verifyHash(String(b.pin||''),p.pin_hash))return fail('PIN incorreto.',403);
+  
   const count=await env.DB.prepare('SELECT COUNT(*) n FROM profiles WHERE user_id=?').bind(s.user_id).first();if(count.n<=1)return fail('Mantenha ao menos um perfil.',409);
   await env.DB.prepare('UPDATE sessions SET profile_id=NULL WHERE profile_id=?').bind(p.id).run();await env.DB.prepare('DELETE FROM profiles WHERE id=?').bind(p.id).run();return json({ok:true});
  }
@@ -394,6 +396,14 @@ async function handle(req,env) {
   const last=await env.DB.prepare('SELECT created_at FROM comments WHERE profile_id=? ORDER BY created_at DESC LIMIT 1').bind(s.profile_id).first();
   if(last&&Date.now()-Date.parse(last.created_at.replace(' ','T')+'Z')<12000)return fail('Aguarde alguns segundos para comentar novamente.',429);
   await env.DB.prepare('INSERT INTO comments(id,profile_id,media_type,media_id,content) VALUES(?,?,?,?,?)').bind(randomId(),s.profile_id,b.type,+b.id,content).run();return json({ok:true},201);
+ }
+ if((path==='/api/comments/edit'||path==='/api/comments/delete')&&method==='POST'){
+  const b=await bodyJson(req),id=String(b.id||'');if(!/^[a-zA-Z0-9-]{8,80}$/.test(id))return fail('Comentário inválido.');
+  const row=await env.DB.prepare('SELECT id FROM comments WHERE id=? AND profile_id=?').bind(id,s.profile_id).first();
+  if(!row)return fail('Você só pode alterar seus próprios comentários.',403);
+  if(path.endsWith('/delete')){await env.DB.prepare('DELETE FROM comments WHERE id=? AND profile_id=?').bind(id,s.profile_id).run();return json({ok:true});}
+  const content=String(b.content||'').trim();if(content.length<2||content.length>500)return fail('Comentário precisa ter entre 2 e 500 caracteres.');
+  await env.DB.prepare('UPDATE comments SET content=? WHERE id=? AND profile_id=?').bind(content,id,s.profile_id).run();return json({ok:true});
  }
  return fail('Rota não encontrada.',404);
 }

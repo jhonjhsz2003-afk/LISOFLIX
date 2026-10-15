@@ -118,15 +118,15 @@ try {
       }
       '3' {
         $m=MediaDetails
-        $mode=(Read-Host 'Modo [standard/vip]').Trim().ToLowerInvariant()
-        if($mode -notin @('standard','vip')){throw 'Modo invalido.'}
+        $mode=(Read-Host 'Modo [standard]').Trim().ToLowerInvariant()
+        if($mode -notin @('standard')){throw 'Modo invalido.'}
         $label=(Read-Host 'Nome do player (ate 70 caracteres)').Trim()
         if(-not $label){$label='Player externo'}
         if($label.Length -gt 70){throw 'Nome demasiado longo.'}
         Write-Host 'ATENCAO: a API de catalogo NAO comprova direitos de exibicao. O iframe pode ser bloqueado ou conter anuncios.' -ForegroundColor Yellow
         NeedOk 'Confirmo possuir AUTORIZACAO para incorporar ESTE filme/episodio pelo fornecedor?'
         BackupOnce
-        ExecuteSQL "INSERT INTO playback_embeds(media_type,media_id,season,episode,provider,mode,label,enabled) VALUES ($(SqlText $m.type),$($m.id),$($m.season),$($m.episode),'multiembed',$(SqlText $mode),$(SqlText $label),1) ON CONFLICT(media_type,media_id,season,episode) DO UPDATE SET provider=excluded.provider,mode=excluded.mode,label=excluded.label,enabled=1"
+        ExecuteSQL "INSERT INTO playback_embeds(media_type,media_id,season,episode,provider,mode,label,enabled) VALUES ($(SqlText $m.type),$($m.id),$($m.season),$($m.episode),'embedmovies',$(SqlText $mode),$(SqlText $label),1) ON CONFLICT(media_type,media_id,season,episode) DO UPDATE SET provider=excluded.provider,mode=excluded.mode,label=excluded.label,enabled=1"
       }
       '4' {
         $m=MediaDetails

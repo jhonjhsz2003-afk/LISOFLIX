@@ -107,8 +107,8 @@ CREATE TABLE IF NOT EXISTS playback_embeds (
  media_id INTEGER NOT NULL,
  season INTEGER NOT NULL DEFAULT 0,
  episode INTEGER NOT NULL DEFAULT 0,
- provider TEXT NOT NULL CHECK(provider IN ('multiembed')),
- mode TEXT NOT NULL DEFAULT 'standard' CHECK(mode IN ('standard','vip')),
+ provider TEXT NOT NULL CHECK(provider IN ('embedmovies')),
+ mode TEXT NOT NULL DEFAULT 'standard' CHECK(mode IN ('standard')),
  label TEXT NOT NULL DEFAULT 'Player externo',
  enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
  PRIMARY KEY(media_type,media_id,season,episode)
