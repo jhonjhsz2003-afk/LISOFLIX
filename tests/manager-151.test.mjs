@@ -15,13 +15,13 @@ test('gestor usa UUID em vez de depender do nome, queries mostram linhas',()=>{
   assert.match(s,/LOCALAPPDATA/);
   assert.doesNotMatch(s,/INSERT INTO playback_embeds[\s\S]*?WHERE 1=1/);
 });
-test('deploy confere UUID e conta antes de D1 e deployment',()=>{
+test('deploy confere UUID e conta e nao modifica tabelas D1',()=>{
   const s=get('10-PUBLICAR-CLOUDFLARE.ps1');
-  assert.match(s,/uuidConfigured/);
-  assert.match(s,/dbCandidates/);
+  assert.match(s,/database_id/);
+  assert.match(s,/\$match = @\(\$banks \| Where-Object/);
   assert.match(s,/Read-Host/);
   assert.match(s,/'d1','export'/);
-  assert.match(s,/'d1','execute','DB'/);
+  assert.doesNotMatch(s,/'d1','execute'|schema\.sql.*--yes/); assert.match(s,/'wrangler','deploy'/);
 });
 test('diagnostico e somente leitura e sem segredos',()=>{
   const s=get('12-VERIFICAR-PLAYER.ps1');

@@ -1,41 +1,43 @@
-# LISOFLIX 1.6.0 | proteger dados D1, migrar esquema e publicar site.
-$ErrorActionPreference='Stop'
-if (-not $PSScriptRoot) {throw 'Execute o arquivo PS1, nao cole seu conteudo no terminal.'}
+# LISOFLIX v1.6.1 - atualizar Worker sem modificar tabelas do banco D1.
+# Execute dentro da pasta extraida. Mantenha o UUID real no wrangler.jsonc.
+$ErrorActionPreference = 'Stop'
+if (-not $PSScriptRoot) { throw 'Execute este arquivo .ps1 a partir da pasta extraida.' }
 Set-Location -LiteralPath $PSScriptRoot
-function Run([string]$exe,[string[]]$args){ & $exe @args; if($LASTEXITCODE -ne 0){throw "Falhou: $exe $($args -join ' ')"}}
+function Run([string]$exe, [string[]]$arguments) {
+  & $exe @arguments
+  if ($LASTEXITCODE -ne 0) { throw "Comando falhou: $exe $($arguments -join ' ')" }
+}
 try {
- if(-not (Get-Command npx.cmd -ErrorAction SilentlyContinue)){throw 'Instale Node.js LTS.'}
- Run 'npx.cmd' @('wrangler','whoami')
- $cfg=Get-Content -LiteralPath 'wrangler.jsonc' -Raw | ConvertFrom-Json
- if(@($cfg.d1_databases).Count -ne 1 -or $cfg.d1_databases[0].binding -ne 'DB'){throw 'Mantenha apenas o binding DB.'}
- $uuidConfigured=[string]$cfg.d1_databases[0].database_id
- if($uuidConfigured -notmatch '^[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$'){throw 'database_id invalido no wrangler.jsonc.'}
- $raw = & npx.cmd wrangler d1 list --json | Out-String
- if($LASTEXITCODE -ne 0){throw 'Falha na listagem de bancos D1.'}
- try { $available = @(ConvertFrom-Json -InputObject $raw -ErrorAction Stop) }
- catch {throw 'Wrangler nao retornou JSON valido para D1 list.'}
- $dbCandidates = @($available | Where-Object { ([string]$_.uuid -eq $uuidConfigured) -or ([string]$_.id -eq $uuidConfigured) })
- if($dbCandidates.Count -ne 1){throw 'UUID D1 do projeto nao encontrado na conta Cloudflare autenticada. Nenhuma mudanca feita.'}
- $bankName=[string]$dbCandidates[0].name
- if(-not $bankName){throw 'D1 encontrado sem nome remoto.'}
- Write-Host "Banco verificado pelo UUID: $bankName / $uuidConfigured" -ForegroundColor Green
- if ($bankName -ne [string]$cfg.d1_databases[0].database_name) {
-   Write-Host 'ATENCAO: nome do D1 difere da configuracao. O UUID foi validado.' -ForegroundColor Yellow
- }
- $confirmation=(Read-Host 'A conta Cloudflare e o banco acima sao os desejados? Digite SIM').Trim()
- if($confirmation.ToUpperInvariant() -cne 'SIM'){throw 'Publicacao cancelada sem alteracoes.'}
- $dest=Join-Path $env:LOCALAPPDATA 'LISOFLIX\backups';New-Item -ItemType Directory -Path $dest -Force|Out-Null
- $dump=Join-Path $dest ('lisoflix-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'.sql')
- Run 'npx.cmd' @('wrangler','d1','export',$bankName,'--remote',"--output=$dump")
- if(-not (Test-Path $dump) -or (Get-Item $dump).Length -lt 10){throw 'Backup D1 ausente. Interrompido.'}
- Write-Host 'AVISO: a proxima etapa REMOVE CADASTROS ANTIGOS de SuperEmbed e os antigos hashes de PIN de PERFIL; senhas das contas permanecem.' -ForegroundColor Yellow
- $cleanup=(Read-Host 'Backup pronto. Para limpar a tabela antiga de embeds, digite LIMPAR').Trim()
- if($cleanup -cne 'LIMPAR'){throw 'Publicacao interrompida antes da migracao. O backup foi salvo.'}
- Run 'npx.cmd' @('wrangler','d1','execute','DB','--remote','--file=./migrations/0002-limpar-embeds-antigos.sql','--yes')
- Run 'npx.cmd' @('wrangler','d1','execute','DB','--remote','--file=./migrations/0003-remover-pin-perfis.sql','--yes')
- Run 'npx.cmd' @('wrangler','d1','execute','DB','--remote','--file=./schema.sql','--yes')
- Run 'npm.cmd' @('test')
- Run 'npx.cmd' @('wrangler','deploy')
- Write-Host "Deploy concluido. Backup D1 salvo fora do GitHub: $dump" -ForegroundColor Green
- Write-Host 'Confira /api/health, /api/system-check e teste cadastro em producao.' -ForegroundColor Cyan
-} catch { Write-Host "ERRO: $($_.Exception.Message)" -ForegroundColor Red; exit 1 }
+  if (-not (Get-Command npx.cmd -ErrorAction SilentlyContinue)) { throw 'Node.js LTS e npm/npx sao necessarios.' }
+  if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) { throw 'npm.cmd nao encontrado.' }
+  $cfg = Get-Content -LiteralPath '.\wrangler.jsonc' -Raw | ConvertFrom-Json
+  $items = @($cfg.d1_databases)
+  if ($items.Count -ne 1 -or $items[0].binding -ne 'DB') { throw 'O projeto precisa de um unico binding D1 chamado DB.' }
+  $uuid = [string]$items[0].database_id
+  if ($uuid -notmatch '^[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$') { throw 'UUID do D1 invalido no wrangler.jsonc.' }
+  Run 'npx.cmd' @('wrangler','whoami')
+  $raw = (& npx.cmd wrangler d1 list --json | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0) { throw 'Falha ao listar bancos D1 da conta atual.' }
+  try { $banks = @(ConvertFrom-Json -InputObject $raw -ErrorAction Stop) }
+  catch { throw 'O Wrangler nao retornou JSON valido para os bancos D1.' }
+  $match = @($banks | Where-Object { ([string]$_.uuid -eq $uuid) -or ([string]$_.id -eq $uuid) })
+  if ($match.Count -ne 1) { throw 'O UUID do D1 nao pertence a esta conta Cloudflare. Publicacao cancelada.' }
+  $remoteName = [string]$match[0].name
+  Write-Host "Conta correta e banco confirmado: $remoteName / $uuid" -ForegroundColor Green
+  $ok = (Read-Host 'Confirma publicar nesta conta e manter os dados D1? (digite SIM)').Trim()
+  if ($ok.ToUpperInvariant() -cne 'SIM') { throw 'Operacao cancelada.' }
+  $folder = Join-Path $env:LOCALAPPDATA 'LISOFLIX\backups'
+  New-Item -ItemType Directory -Force -Path $folder | Out-Null
+  $backup = Join-Path $folder ('antes-do-deploy-161-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'.sql')
+  Run 'npx.cmd' @('wrangler','d1','export',$remoteName,'--remote',"--output=$backup")
+  if (-not (Test-Path -LiteralPath $backup) -or (Get-Item -LiteralPath $backup).Length -lt 10) { throw 'Backup D1 nao foi criado. Publicacao cancelada.' }
+  Write-Host "Backup seguro: $backup" -ForegroundColor Green
+  Run 'npm.cmd' @('test')
+  # NAO executa schema.sql, DROP, UPDATE, ou migracoes nesta atualizacao.
+  Run 'npx.cmd' @('wrangler','deploy')
+  Write-Host 'LISOFLIX v1.6.1 publicado. Nenhuma tabela do D1 foi modificada pelo script.' -ForegroundColor Green
+  Write-Host 'Confira /api/health e /api/system-check e teste o layout no navegador.' -ForegroundColor Cyan
+} catch {
+  Write-Host "ERRO: $($_.Exception.Message)" -ForegroundColor Red
+  exit 1
+}

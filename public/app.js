@@ -52,6 +52,7 @@ const pageConfig={
 };
 const filmGenres=[['','Todos os gêneros'],['28','Ação'],['12','Aventura'],['35','Comédia'],['80','Crime'],['99','Documentários'],['18','Drama'],['10751','Família'],['14','Fantasia'],['36','História'],['27','Terror'],['10402','Música'],['9648','Mistério'],['10749','Romance'],['878','Ficção científica'],['53','Suspense'],['10752','Guerra'],['37','Faroeste']];
 const seriesGenres=[['','Todos os gêneros'],['10759','Ação e aventura'],['35','Comédia'],['80','Crime'],['99','Documentários'],['18','Drama'],['10751','Família'],['10762','Infantil'],['9648','Mistério'],['10763','Notícias'],['10764','Reality'],['10765','Ficção e fantasia'],['10766','Novela'],['10767','Talk show'],['10768','Guerra e política']];
+const animeGenres=[['','Todos os gêneros'],['10759','Ação e aventura'],['10765','Fantasia e ficção'],['35','Comédia'],['18','Drama'],['9648','Mistério'],['10762','Infantil'],['10751','Família']];
 const languages=[['en','Inglês'],['pt','Português'],['ja','Japonês'],['ko','Coreano'],['es','Espanhol'],['fr','Francês'],['de','Alemão'],['it','Italiano'],['zh','Chinês'],['hi','Hindi'],['ar','Árabe'],['ru','Russo'],['tr','Turco'],['th','Tailandês']];
 function toast(msg,kind='ok'){const box=document.createElement('div');box.className='toast';box.innerHTML=icon(kind==='error'?'info':'check')+`<span>${esc(msg)}</span>`;toastStack.append(box);setTimeout(()=>box.remove(),4500);}
 async function api(path,opts={}){const r=await fetch(path,{credentials:'same-origin',...opts,headers:{...(opts.body?{'Content-Type':'application/json'}:{}),...opts.headers}});let data={};try{data=await r.json();}catch{}if(!r.ok)throw Error(data.error||`Erro ${r.status}`);return data;}
@@ -92,9 +93,9 @@ function rail(sec,label,isTop=false,itemsOverride){
  ${items.length>3?`<div class="rail-arrows rail-arrows-overlay"><button class="arrow arrow-prev" data-action="rail" data-dir="-1" aria-label="Voltar capas">${icon('left')}</button><button class="arrow arrow-next" data-action="rail" data-dir="1" aria-label="Avançar capas">${icon('right')}</button></div>`:''}</div></section>`;
 }
 function renderHome(){const cfg=pageConfig[state.page]||pageConfig.inicio;const used=new Set();const sections=cfg.sections.map(([sec,label,top])=>{const pool=state.sections[sec]?.results||[];if(state.isDemo||!pool.length)return rail(sec,label,top);const fresh=pool.filter(x=>!used.has(key(x)));const chosen=fresh.slice(0,top?10:40);if(!chosen.length)return rail(sec,label,top);for(const m of chosen)used.add(key(m));return rail(sec,label,top,chosen);}).join('');if(state.page==='inicio')return `${renderHero()}<div class="container home-content">${state.library.watching.length?rail('watching','Continuar assistindo',false,state.library.watching):''}${state.library.list.length?rail('saved','Minha lista',false,state.library.list):''}${state.sectionError?`<div class="catalog-alert">${icon('info')} Não foi possível atualizar algumas categorias: ${esc(state.sectionError)}. <a href="/api/tmdb/check" target="_blank" rel="noopener">Verificar conexão</a></div>`:''}${sections}</div>`;
-const genrePage=['filmes','series'].includes(state.page);
- const options=state.page==='filmes'?filmGenres:seriesGenres;
- const genreControl=genrePage?`<div class="genre-bar"><label for="genre-select">Explorar por gênero</label><select id="genre-select" aria-label="Filtrar por gênero">${options.map(([value,name])=>`<option value="${value}" ${state.genre===value?'selected':''}>${name}</option>`).join('')}</select></div>`:'';
+const genrePage=['filmes','series','animes'].includes(state.page);
+ const options=state.page==='filmes'?filmGenres:state.page==='animes'?animeGenres:seriesGenres;
+ const genreControl=genrePage?`<div class="genre-bar"><label for="genre-select">${state.page==='animes'?'Gêneros de anime':'Explorar por gênero'}</label><select id="genre-select" aria-label="Filtrar por gênero">${options.map(([value,name])=>`<option value="${value}" ${state.genre===value?'selected':''}>${name}</option>`).join('')}</select></div>`:'';
  const genreContent=genrePage&&state.genre?`<section class="genre-results"><h2>${esc(options.find(([k])=>k===state.genre)?.[1]||'Gênero selecionado')}</h2><div class="catalog-grid">${state.isLoading?loadingTiles():state.genreResults.length?state.genreResults.map(tileItem=>tile(tileItem)).join(''):'<p>Nenhum título encontrado nesse gênero.</p>'}</div></section>`:'';
  return `<div class="page-top container"><div class="eyebrow">O seu próximo play está aqui</div><h1 class="page-title">${esc(cfg.title)}</h1><p class="page-lede">${esc(cfg.lede)}</p></div><div class="container content-page">${genreControl}${genreContent}${state.sectionError?`<div class="catalog-alert">${icon('info')} Algumas categorias não carregaram: ${esc(state.sectionError)}. <a href="/api/tmdb/check" target="_blank" rel="noopener">Diagnóstico</a></div>`:''}${state.genre&&genrePage?'':sections}</div>`;}
 function emptyPage(emoji,titleStr,desc,action='auth',cta='Entrar na conta'){return `<div class="empty"><div class="big-emoji">${emoji}</div><h3>${esc(titleStr)}</h3><p>${esc(desc)}</p><button class="btn btn-main" data-action="${action}">${esc(cta)}</button></div>`;}
@@ -124,9 +125,10 @@ async function navigate(page,{push=true}={}){
  if(page==='minha-lista')await refreshLibrary();if(page==='idiomas')await loadDiscover();else if(page==='busca')await runSearch();else await loadSections(page);render();
 }
 async function loadDiscover(){state.isLoading=true;render();const type=state.languageType,lang=state.language;
- try{const pages=await Promise.all([1,2,3].map(p=>api(`/api/discover?type=${type}&lang=${lang}&page=${p}`)));
+ try{const pages=await Promise.all([1,2,3,4,5].map(p=>api(`/api/discover?type=${type}&lang=${lang}&page=${p}`).catch(()=>null)));
   if(type!==state.languageType||lang!==state.language)return;
-  const seen=new Set();state.discover=pages.flatMap(d=>d.results||[]).filter(m=>{if(seen.has(key(m)))return false;seen.add(key(m));return true;});
+  if(!pages.some(Boolean))throw Error('Não foi possível atualizar esse idioma agora.');
+  const seen=new Set();state.discover=pages.filter(Boolean).flatMap(d=>d.results||[]).filter(m=>{if(seen.has(key(m)))return false;seen.add(key(m));return true;});
  }catch(e){state.discover=[];bannerError(e);}state.isLoading=false;render();}
 let searchSeq=0,searchTimer=null;
 async function runSearch({preview=false}={}){
@@ -147,12 +149,16 @@ function paintSearchSuggestions(){
  node.hidden=state.search.trim().length<1;
 }
 async function loadGenre(){
- if(!state.genre||!['filmes','series'].includes(state.page)){state.genreResults=[];return;}
+ if(!state.genre||!['filmes','series','animes'].includes(state.page)){state.genreResults=[];return;}
  const page=state.page,genre=state.genre;state.genreResults=[];state.isLoading=true;render();
- const type=page==='filmes'?'movie':'tv';
- try{const pages=await Promise.all([1,2,3].map(p=>api(`/api/discover?type=${type}&genre=${genre}&page=${p}`)));
+ const type=page==='filmes'?'movie':'tv',category=page==='animes'?'&category=anime':'';
+ const animeMovieGenres={'10759':'28','10765':'14','10762':'10751'};
+ const primaryPages=[1,2,3,4].map(p=>api(`/api/discover?type=${type}&genre=${genre}${category}&page=${p}`));
+ const moviePages=page==='animes'?[1,2].map(p=>api(`/api/discover?type=movie&genre=${animeMovieGenres[genre]||genre}&category=anime&page=${p}`)):[];
+ try{const pages=await Promise.all([...primaryPages,...moviePages].map(p=>p.catch(()=>null)));
  if(page!==state.page||genre!==state.genre)return;
- const seen=new Set();state.genreResults=pages.flatMap(x=>x.results||[]).filter(m=>{if(seen.has(key(m)))return false;seen.add(key(m));return true;});
+ if(!pages.some(Boolean))throw Error('Não foi possível consultar esse gênero agora.');
+ const seen=new Set();state.genreResults=pages.filter(Boolean).flatMap(x=>x.results||[]).filter(m=>{if(seen.has(key(m))||(page==='animes'&&contentKind(m)!=='Anime'))return false;seen.add(key(m));return true;});
  }catch(e){state.genreResults=[];bannerError(e);}
  state.isLoading=false;render();
 }
@@ -228,7 +234,7 @@ function playerModal(){
  <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2><span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
  <div class="player-viewport branded-video">
  ${!source||source.loading?`<div class="player-message">${icon('refresh')}<h3>Buscando uma fonte de vídeo disponível…</h3><p>Aguarde enquanto verificamos a disponibilidade deste título.</p></div>`:
- source.available&&source.mode==='iframe'?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(source.url)}" title="Player externo de ${esc(title(d))}" allow="autoplay; fullscreen; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="eager"></iframe><div class="embed-notice">A reprodução é fornecida por um serviço externo. Os controles internos e a disponibilidade dependem desse serviço. Pop-ups e navegação externa não são autorizados.</div></div>`:
+ source.available&&source.mode==='iframe'?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(source.url)}" title="Player externo de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="eager"></iframe><div class="embed-notice"><span>Player externo: se a imagem não carregar, tente recarregar. A disponibilidade e os controles dependem do fornecedor.</span><div class="embed-actions"><button class="embed-retry" type="button" data-action="retryembed" aria-label="Recarregar o player">${icon('refresh')} Recarregar player</button><button class="embed-retry" type="button" data-action="backdetail">Voltar aos detalhes</button></div></div></div>`:
  source.available?`<div class="native-video-wrap"><video id="native-player" playsinline preload="metadata" poster="${esc(pics(d)||'')}"><source src="${esc(source.url)}" type="${esc(source.mime)}">Seu navegador não consegue reproduzir este formato.</video><div class="native-controls"><button class="native-control" data-action="pauseplay" aria-label="Reproduzir ou pausar">${icon('play')}</button><span id="video-clock">0:00 / 0:00</span><input id="video-seek" type="range" value="0" min="0" max="100" step=".1" aria-label="Progresso do vídeo"><button class="native-control" data-action="mutetoggle" aria-label="Silenciar">${icon('volume')}</button><input id="video-volume" type="range" min="0" max="1" value="1" step=".05" aria-label="Volume"><button class="native-control" data-action="fullscreen" aria-label="Tela cheia">⛶</button></div><p class="video-status" id="video-status" aria-live="polite"></p></div>`:
  `<div class="player-message"><img class="unavailable-emblem" src="/brand/lisoflix-emblem.webp" alt=""/><h3>Reprodução indisponível para este título</h3><p>${playbackReason} O catálogo fornece informações e capas, mas não arquivos de reprodução. Você ainda pode assistir ao trailer, quando disponível.</p><div class="player-buttons"><button class="btn btn-main" data-action="backdetail">Voltar aos detalhes</button>${dVideo(d)?`<button class="btn btn-glass" data-action="trailer">${icon('film')} Ver trailer</button>`:''}</div></div>`}
  </div><div class="player-banner">LISOFLIX · Reprodução sujeita à autorização e disponibilidade da fonte. Iframes externos usam seus próprios controles.</div></div></div>`;
@@ -284,6 +290,7 @@ async function action(a,el){switch(a){
  case 'editprofile':state.manageProfile=state.profiles.find(x=>x.id===el.dataset.id);state.chosenAvatar=state.manageProfile?.avatar||'';renderOverlay();break;
  case 'avatar':state.chosenAvatar=el.dataset.avatar||'';renderOverlay();break;
  case 'deleteprofile':{const p=state.manageProfile;if(!p||!confirm(`Excluir o perfil "${p.name}" e sua lista?`))break;try{await post('/api/profiles/delete',{id:p.id});await refreshMe();state.overlay='profiles';renderOverlay();toast('Perfil excluído.');}catch(e){bannerError(e);}break;}
+ case 'retryembed':{const frame=$('.embed-video-frame');if(frame?.src){frame.src=frame.src;toast('Tentando carregar o player novamente.');}break;}
  case 'pauseplay':{const v=$('#native-player');if(v){if(v.paused)v.play().catch(()=>{});else v.pause();}break;}
  case 'mutetoggle':{const v=$('#native-player');if(v){v.muted=!v.muted;syncVideoControls(v);}break;}
  case 'fullscreen':{const v=$('.native-video-wrap');if(v?.requestFullscreen)v.requestFullscreen().catch(()=>{});break;}

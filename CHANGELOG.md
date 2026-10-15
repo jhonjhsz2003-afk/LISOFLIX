@@ -1,3 +1,11 @@
+## 1.6.1 — grade responsiva e gêneros de anime
+- Capas de gênero e idioma maiores (5 desktop / 4 laptop / 3 tablet / 2 mobile), formato panorâmico 16:9.
+- Filtro de gêneros em Animes com séries e longas japoneses; filtros de Filmes e Séries excluem animações.
+- Maior quantidade de títulos por idioma, com tolerância a falhas de páginas individuais.
+- Player EmbedMovies com permissão encrypted-media, recarregar e voltar; iframe seguro sem pop-ups.
+- Atualização de Worker sem executar novamente migrações D1; script verifica UUID e salva backup.
+- Integração de iframe requer fonte previamente autorizada/cadastrada e pode depender do provedor.
+
 # LISOFLIX 1.6.0 (preparado, não publicado)
 
 - Remove os atalhos duplicados "Tudo / Filmes / Séries / Animes / Desenhos / Bombando" da tela inicial. Navegação principal continua.

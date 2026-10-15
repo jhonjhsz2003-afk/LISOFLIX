@@ -1,7 +1,7 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
@@ -226,11 +226,13 @@ async function handle(req,env) {
   const type=url.searchParams.get('type')==='movie'?'movie':'tv';
   const lang=(url.searchParams.get('lang')||'').toLowerCase();
   const genre=url.searchParams.get('genre')||'';
-  if(lang&&!/^[a-z]{2}$/.test(lang))return fail('Idioma inválido.');
+  const category=url.searchParams.get('category')||'';
+  if(category&&category!=='anime')return fail('Categoria inválida.');
+    if(lang&&!/^[a-z]{2}$/.test(lang))return fail('Idioma inválido.');
   if(genre&&!/^[0-9]{1,6}$/.test(genre))return fail('Gênero inválido.');
   if(!tmdbReady(env))return json({results:DEMO.filter(x=>x.media_type===type),demo:true});
-  const d=await tmdb(env,`/discover/${type}`,{...(lang?{with_original_language:lang}:{}),...(genre?{with_genres:genre}:{}),sort_by:'popularity.desc',include_adult:'false',page:Math.max(1,Math.min(5,+url.searchParams.get('page')||1))},600);
-  return json({results:(d.results||[]).filter(x=>x.poster_path).map(x=>({...x,media_type:type})),demo:false});
+  const d=await tmdb(env,`/discover/${type}`,{...(lang?{with_original_language:lang}:{}),...(category==='anime'?{with_original_language:'ja',with_genres:genre?`16,${genre}`:'16'}:{...(genre?{with_genres:genre}:{}),...(!lang?{without_genres:'16'}:{})}),sort_by:'popularity.desc',include_adult:'false',page:Math.max(1,Math.min(5,+url.searchParams.get('page')||1))},600);
+  return json({results:(d.results||[]).filter(x=>x.poster_path&&(category!=='anime'||((x.genre_ids||[]).includes(16)&&x.original_language==='ja'))).map(x=>({...x,media_type:type})),demo:false});
  }
  if(path==='/api/search'&&method==='GET') {
   const q=(url.searchParams.get('q')||'').trim().slice(0,100);

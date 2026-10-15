@@ -1,3 +1,5 @@
+**Versão atual: 1.6.1.** Para atualizar um site que já usa o LISOFLIX v1.6.0, comece por `INSTRUCOES-ATUALIZACAO-v1.6.1.md` e use `10-PUBLICAR-CLOUDFLARE.ps1`. Esta atualização não requer aplicar novamente a migração D1.
+
 ## v1.5.1 — corrigido em 15/10/2026
 
 - O gerenciador `11-GERENCIAR-FONTES.ps1` identifica o banco por **UUID** (nao por nome). Se o nome remoto for diferente, informa o fato e usa o binding `DB` para consultas e atualizacoes.
