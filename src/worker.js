@@ -1,7 +1,7 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
@@ -69,7 +69,7 @@ function randomId() { return crypto.randomUUID(); }
 function secretToken() { return b64u(crypto.getRandomValues(new Uint8Array(32))); }
 async function sha256(s) { return b64u(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))); }
 async function passwordHash(password, salt) {
-  const derived = await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:210000,hash:'SHA-256'}, await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']),256);
+  const derived = await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:100000,hash:'SHA-256'}, await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']),256);
   return b64u(new Uint8Array(derived));
 }
 async function createHash(password) {const salt=secretToken();return `${salt}.${await passwordHash(password,salt)}`;}
@@ -189,9 +189,18 @@ async function handle(req,env) {
   const db=await databaseHealth(env);let catalogAuth='not-configured';
   if(tmdbReady(env)){try{await tmdb(env,'/configuration',{},0);catalogAuth='authorized';}
   catch(e){catalogAuth=e?.message==='TMDB_AUTH_401'?'unauthorized':'unavailable';}}
-  let activeSources=null;
-  if(db.schemaReady){try{const r=await env.DB.prepare('SELECT COUNT(*) AS total FROM playback_sources WHERE enabled=1').first();activeSources=r?.total??0;}catch{}}
-  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-plus-approved-embeds',activeSources,externalEmbedsSupported:true,externalEmbedsEnabled:iframeFeatureEnabled(env)});
+  let activeSources=null,activeEmbeds=null;
+  if(db.schemaReady){
+   try {
+    const [sources,embeds]=await Promise.all([
+     env.DB.prepare('SELECT COUNT(*) AS total FROM playback_sources WHERE enabled=1').first(),
+     env.DB.prepare('SELECT COUNT(*) AS total FROM playback_embeds WHERE enabled=1').first()
+    ]);
+    activeSources=sources?.total??0;
+    activeEmbeds=embeds?.total??0;
+   } catch(e) { console.warn('Playback counts unavailable', e?.message); }
+  }
+  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-plus-approved-embeds',activeSources,activeEmbeds,externalEmbedsSupported:true,externalEmbedsEnabled:iframeFeatureEnabled(env)});
  }
  if(path==='/api/tmdb/check'&&method==='GET'){
   if(!tmdbReady(env))return json({configured:false,authorized:false,error:'Secret de catálogo não configurado.'},503);

@@ -160,8 +160,11 @@ function playerModal(){
  const source=state.playback;
  const playbackReason=source?.error?`Falha ao consultar o player: ${esc(source.error)}.`:
  source?.reason==='no-source-configured'?'Este título ainda não possui uma fonte de vídeo cadastrada no LISOFLIX.':
- source?.reason==='source-not-allowed'?'O servidor de vídeo não está autorizado na configuração do LISOFLIX.':
- source?.reason==='catalog-only'?'O banco D1 não está pronto para consultar fontes de vídeo.':
+ source?.reason==='source-not-allowed'?'O domínio do vídeo precisa constar em MEDIA_ALLOWED_HOSTS na configuração segura do Worker.':
+ source?.reason==='catalog-only'?'O banco D1 está incompleto ou não está ligado ao Worker.':
+ source?.reason==='invalid-format'?'O formato do vídeo cadastrado não é aceito pelo player nativo.':
+ source?.reason==='invalid-url'?'A URL cadastrada para reprodução é inválida.':
+ source?.reason==='invalid-embed'?'Os dados do episódio ou do player externo estão inválidos.':
  'Não foi possível encontrar uma fonte de vídeo válida para este título.';
  return `<div class="veil player-veil"><div class="player-shell">
  <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2><span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>

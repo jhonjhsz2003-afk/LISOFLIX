@@ -1,4 +1,4 @@
-# LISOFLIX 1.4.0 | proteger dados D1, migrar esquema e publicar site.
+# LISOFLIX 1.5.0 | proteger dados D1, migrar esquema e publicar site.
 $ErrorActionPreference='Stop'
 if (-not $PSScriptRoot) {throw 'Execute o arquivo PS1, nao cole seu conteudo no terminal.'}
 Set-Location -LiteralPath $PSScriptRoot

@@ -12,12 +12,12 @@
     ]
   },
   "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "lisoflix-db",
-      "database_id": "84f209c7-a842-406c-92ae-ebfebeab73dc"
-    }
-  ],
+  {
+    "binding": "DB",
+    "database_name": "lisoflix-db",
+    "database_id": "84f209c7-a842-406c-92ae-ebfebeab73dc"
+  }
+],
   "triggers": {
     "crons": [
       "*/30 * * * *"

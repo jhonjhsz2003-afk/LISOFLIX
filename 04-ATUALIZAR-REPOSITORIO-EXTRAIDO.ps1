@@ -40,6 +40,15 @@ try {
         if ($rel -eq 'wrangler.jsonc' -and (Test-Path -LiteralPath $dest)) {
             $incoming = Get-Content -LiteralPath $file.FullName -Raw
             $existing = Get-Content -LiteralPath $dest -Raw
+            $incomingCfg = $incoming | ConvertFrom-Json
+            $existingCfg = $existing | ConvertFrom-Json
+            $newUuid = [string]$incomingCfg.d1_databases[0].database_id
+            $oldUuid = [string]$existingCfg.d1_databases[0].database_id
+            if ($newUuid -ne $oldUuid -and $oldUuid -notmatch 'COLOQUE-AQUI') {
+                Write-Host "ATENCAO: o ID D1 no GitHub diverge do ZIP ($oldUuid -> $newUuid)." -ForegroundColor Yellow
+                $choice = Read-Host 'Confirma atualizar a configuracao do GitHub com o ID do ZIP? Digite SIM'
+                if ($choice -cne 'SIM') { throw 'Parado: confirme sua conta Cloudflare e o ID D1 antes de sincronizar.' }
+            }
             if ($incoming -match 'COLOQUE-AQUI-O-ID-DO-SEU-D1' -and $existing -notmatch 'COLOQUE-AQUI-O-ID-DO-SEU-D1') {
                 Write-Host 'Preservando wrangler.jsonc existente (ID D1 configurado).' -ForegroundColor Yellow
                 continue

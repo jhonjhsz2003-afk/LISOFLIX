@@ -1,3 +1,38 @@
+# LISOFLIX v1.5.0 — gerenciamento de fontes
+
+Esta versão **não cria filmes para reprodução automaticamente**. A API de catálogo retorna informações, capas e trailers; reproduções completas só funcionam quando houver uma fonte de vídeo autorizada cadastrada, com URL HTTPS permitida para o player nativo ou um embed que o titular permita incorporar. A existência de um iframe de terceiros não assegura licença de exibição nem sua disponibilidade.
+
+## O que mudou nesta versão
+
+- `11-GERENCIAR-FONTES.ps1`: menu no PowerShell para **listar, cadastrar e desativar** fontes de filmes ou episódios, identificados por IDs TMDB. Possui validação de banco/conta, confirmação explícita e backup remoto fora do GitHub antes da primeira mudança.
+- `/api/system-check`: retorna `activeSources` e `activeEmbeds`, separadamente. Não revela URLs privadas, senhas nem chaves.
+- Mensagens do player aperfeiçoadas para URLs, formatos e domínios não permitidos.
+- Conserva **Cloudflare D1, contas, perfis, comentários e histórico existentes**. Não requer recriação do banco e não altera o `schema.sql`.
+- Mantida a correção PBKDF2 de **100.000** iterações da versão `worker.js` que você enviou. É necessário planejar uma evolução segura do armazenamento de senhas antes de abrir o cadastro para o público, com migração de hashes antigos.
+- `wrangler.jsonc` acompanha o banco e as variáveis presentes no arquivo que você enviou. **Antes de publicar, confirme que o UUID ainda pertence à conta Cloudflare desejada.** O script de deploy verifica o UUID remoto e interrompe em caso de divergência.
+
+## Primeiro uso: gerenciar fontes
+
+1. Extraia o ZIP em uma pasta nova e abra o PowerShell dentro da pasta `LISOFLIX`.
+2. Rode `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\11-GERENCIAR-FONTES.ps1"`.
+3. Confirme **a conta Cloudflare e o UUID do D1**. Escolha `1` para listar, `2` para cadastrar vídeo nativo, `3` para cadastrar embed autorizado ou `4` para desativar um registro.
+4. Informe `movie` ou `tv`, ID do título no catálogo e, no caso de série, temporada e episódio. Para vídeos próprios, informe a URL HTTPS e o tipo MIME. Para incorporação de terceiros, é preciso ter os direitos necessários.
+5. As mudanças no D1 remoto são imediatas, **sem necessidade de novo deploy**, desde que o Worker já esteja atualizado e usando o mesmo banco.
+
+**Sobre vídeos nativos:** adicione os domínios de mídia autorizados à variável de ambiente `MEDIA_ALLOWED_HOSTS` da Cloudflare, separados por vírgula. Exemplo fictício: `midia.exemplo.com,cdn.exemplo.com`. O player aceita MP4, WebM e HLS; alguns navegadores precisam de suporte adicional para HLS e não existe garantia de funcionamento sem testes.
+
+**Sobre embeds:** a integração fica restrita a registros explicitamente cadastrados na tabela `playback_embeds`, quando `ENABLE_EXTERNAL_EMBEDS=true`. A incorporação usa um iframe com isolamento, que pode impedir funcionamento de serviços que exigem pop-ups ou redirecionamentos. Não são removidos anúncios dentro do iframe e a barra de progresso própria não controla o vídeo de terceiros.
+
+## Atualizar o GitHub e o Worker
+
+- **GitHub:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\09-ATUALIZAR-GITHUB.ps1"`. O script atualiza `jhonjhsz2003-afk/LISOFLIX` sem force push; caso o `database_id` do GitHub seja diferente, exige confirmação.
+- **Cloudflare:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\10-PUBLICAR-CLOUDFLARE.ps1"`. Confirma conta e UUID remoto, faz backup e executa testes, migração não destrutiva e deploy. Nunca cole o token TMDB no código.
+- Confirme a versão em `/api/config` (**1.5.0**), a estrutura do D1 em `/api/health` (`schemaReady: true`) e os números de fontes em `/api/system-check`.
+
+As instruções anteriores da documentação permanecem abaixo para referência. Os passos específicos desta seção prevalecem sobre os procedimentos de versões antigas.
+
+---
+
 # LISOFLIX 1.4.0 — publicação conferida
 
 Esta versão atualiza o site, a API do catálogo, os perfis, as reações e o player de fontes próprias/autorizadas. Está preparada para **Cloudflare Workers + D1** e para o repositório `jhonjhsz2003-afk/LISOFLIX`.

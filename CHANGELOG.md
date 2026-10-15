@@ -1,3 +1,15 @@
+# LISOFLIX — histórico de mudanças
+
+## v1.5.0 — Cadastro guiado de fontes
+
+- Menu de operação separado do site, sem painel administrativo público, para cadastrar/listar/desativar fontes explícitas por título e episódio.
+- Confirmada a conta Cloudflare, `database_id` e permissões antes de qualquer escrita no D1.
+- Backup D1 salvo fora da pasta do GitHub antes da primeira alteração.
+- `/api/system-check` inclui contagem de players externos ativos sem expor URLs.
+- Mensagens mais específicas do player, preservando contas, perfis e dados do banco.
+- Configuração do D1 preservada conforme arquivo que o usuário enviou. Não envia Secrets ao repositório.
+- Corrigido o conflito entre os testes antigos de versão/flags e a configuração de produção desejada.
+
 # LISOFLIX 1.4.0 — análise e compatibilidade do player externo
 
 - Estudado `se_player.php` enviado: PHP utiliza serviço externo de redirecionamento e desativa a verificação de TLS; o arquivo PHP não é executável em Cloudflare Workers e não foi integrado.
