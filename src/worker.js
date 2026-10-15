@@ -1,11 +1,11 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.3.1';
+const APP_VERSION = '1.4.0';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
-const CORE_TABLES=['users','profiles','sessions','login_guards','comments','reactions','my_list','watching','catalog_cache','playback_sources','playback_progress'];
+const CORE_TABLES=['users','profiles','sessions','login_guards','comments','reactions','my_list','watching','catalog_cache','playback_sources','playback_progress','playback_embeds'];
 async function databaseHealth(env) {
  if (!env.DB) return {database:false,schemaReady:false,missing:CORE_TABLES};
  const cached=schemaMemo.get(env.DB);if(cached&&Date.now()-cached.at<10000)return cached.result;
@@ -32,6 +32,18 @@ const sections = {
   family: ['/discover/movie', {with_genres:'10751',without_genres:'16',sort_by:'popularity.desc'}],
   horror: ['/discover/movie', {with_genres:'27',sort_by:'popularity.desc'}],
 };
+
+// Iframes de fontes explicitamente cadastradas (sem executar PHP ou acessar URLs arbitrárias).
+function iframeFeatureEnabled(env) {return String(env.ENABLE_EXTERNAL_EMBEDS||'').toLowerCase()==='true';}
+function licensedEmbedUrl(type,id,season,episode,mode='standard') {
+ if(!safeMedia(type,id)||!['standard','vip'].includes(mode))return null;
+ if(type==='tv'&&(!Number.isInteger(season)||season<1||!Number.isInteger(episode)||episode<1))return null;
+ const u=new URL(mode==='vip'?'https://multiembed.mov/directstream.php':'https://multiembed.mov/');
+ u.searchParams.set('video_id',String(id));u.searchParams.set('tmdb','1');
+ if(type==='tv'){u.searchParams.set('s',String(season));u.searchParams.set('e',String(episode));}
+ return u.href;
+}
+
 const movieSections = new Set(['trending','movies','animefilms','cartoonfilms','upcoming','topmovies','action','romance','scifi','family','horror']);
 function sectionMedia(section) { return movieSections.has(section) ? 'movie' : 'tv'; }
 function isAnimation(row) { return (row.genre_ids || []).includes(16); }
@@ -171,7 +183,7 @@ async function handle(req,env) {
   if(origin&&origin!==url.origin)return fail('Origem não autorizada.',403);
   if(!req.headers.get('Content-Type')?.startsWith('application/json'))return fail('Use application/json.',415);
  }
- if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:false,videoMode:'native-licensed',version:APP_VERSION});
+ if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:iframeFeatureEnabled(env),videoMode:'native-plus-approved-embeds',version:APP_VERSION});
  // Uma verificacao publica que nao mostra credenciais, emails, IDs de conta ou URLs privadas.
  if(path==='/api/system-check'&&method==='GET'){
   const db=await databaseHealth(env);let catalogAuth='not-configured';
@@ -179,7 +191,7 @@ async function handle(req,env) {
   catch(e){catalogAuth=e?.message==='TMDB_AUTH_401'?'unauthorized':'unavailable';}}
   let activeSources=null;
   if(db.schemaReady){try{const r=await env.DB.prepare('SELECT COUNT(*) AS total FROM playback_sources WHERE enabled=1').first();activeSources=r?.total??0;}catch{}}
-  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-licensed',activeSources,externalEmbedsSupported:false});
+  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-plus-approved-embeds',activeSources,externalEmbedsSupported:true,externalEmbedsEnabled:iframeFeatureEnabled(env)});
  }
  if(path==='/api/tmdb/check'&&method==='GET'){
   if(!tmdbReady(env))return json({configured:false,authorized:false,error:'Secret de catálogo não configurado.'},503);
@@ -236,13 +248,22 @@ async function handle(req,env) {
   const season=Math.max(0,Math.min(100,parseInt(url.searchParams.get('season')||'0',10)||0));
   const episode=Math.max(0,Math.min(2000,parseInt(url.searchParams.get('episode')||'0',10)||0));
   const entry=await env.DB.prepare('SELECT url,mime,label FROM playback_sources WHERE media_type=? AND media_id=? AND season=? AND episode=? AND enabled=1 LIMIT 1').bind(type,+id,season,episode).first();
-  if(!entry)return json({available:false,reason:'no-source-configured'});
+  if(!entry){
+   // Não inferimos permissão de exibição a partir do TMDB: fonte precisa ser
+   // explicitamente cadastrada para cada filme ou episódio no D1.
+   if(!iframeFeatureEnabled(env))return json({available:false,reason:'no-source-configured'});
+   const embed=await env.DB.prepare(`SELECT provider,mode,label FROM playback_embeds WHERE media_type=? AND media_id=? AND season=? AND episode=? AND enabled=1 LIMIT 1`).bind(type,+id,season,episode).first();
+   if(!embed||embed.provider!=='multiembed')return json({available:false,reason:'no-source-configured'});
+   const embedUrl=licensedEmbedUrl(type,+id,season,episode,embed.mode);
+   if(!embedUrl)return json({available:false,reason:'invalid-embed'});
+   return json({available:true,mode:'iframe',url:embedUrl,label:embed.label||'Player externo',external:true,customControls:false});
+  }
   const permitted=(env.MEDIA_ALLOWED_HOSTS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
   let u;try{u=new URL(entry.url);}catch{return json({available:false,reason:'invalid-url'});}
   if(u.protocol!=='https:'||!permitted.includes(u.hostname.toLowerCase()))return json({available:false,reason:'source-not-allowed'});
   if(!['video/mp4','video/webm','application/vnd.apple.mpegurl'].includes(entry.mime))return json({available:false,reason:'invalid-format'});
   const auth=await session(req,env);const progress=auth?.profile_id?await env.DB.prepare('SELECT position_seconds,duration_seconds FROM playback_progress WHERE profile_id=? AND media_type=? AND media_id=? AND season=? AND episode=?').bind(auth.profile_id,type,+id,season,episode).first():null;
-  return json({available:true,url:u.toString(),mime:entry.mime,label:entry.label||'Vídeo',position:progress?.position_seconds||0});
+  return json({available:true,mode:'native',url:u.toString(),mime:entry.mime,label:entry.label||'Vídeo',position:progress?.position_seconds||0});
  }
  if(path==='/api/auth/register'&&method==='POST'){
   const databaseError=await requireSchema(env);if(databaseError)return databaseError;

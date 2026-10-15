@@ -1,4 +1,4 @@
-# LISOFLIX 1.3.1 — publicação conferida
+# LISOFLIX 1.4.0 — publicação conferida
 
 Esta versão atualiza o site, a API do catálogo, os perfis, as reações e o player de fontes próprias/autorizadas. Está preparada para **Cloudflare Workers + D1** e para o repositório `jhonjhsz2003-afk/LISOFLIX`.
 
@@ -25,7 +25,7 @@ O ZIP usa o UUID D1 que estava configurado no repositório público LISOFLIX nes
 
 No endereço **real** do seu Worker, abra primeiro:
 
-- `https://lisoflix.jhonjhszgame2003.workers.dev/api/system-check` → confirme `version:"1.3.1"`, `schemaReady:true` e `catalogAuth:"authorized"`. `activeSources:0` significa que não há vídeos autorizados cadastrados; não é erro do TMDB.
+- `https://lisoflix.jhonjhszgame2003.workers.dev/api/system-check` → confirme `version:"1.4.0"`, `schemaReady:true` e `catalogAuth:"authorized"`. `activeSources:0` significa que não há vídeos autorizados cadastrados; não é erro do TMDB.
 
 Verificações adicionais:
 
@@ -83,9 +83,9 @@ No diretório do projeto: `npm run check` e `npm test` (**32 testes locais nesta
 
 O TMDB exige atribuição em uma área de créditos legais; por isso, o crédito existe somente na seção discreta de informações legais do rodapé, não nos destaques/capas/player.
 
-## Entendendo o diagnóstico v1.3.1
+## Entendendo o diagnóstico v1.4.0
 
-- `version` diferente de `1.3.1`: seu navegador ou Worker ainda está com versão antiga; publique com `08-VERIFICAR-CORRIGIR-PUBLICAR.ps1` e use `Ctrl + Shift + R`.
+- `version` diferente de `1.4.0`: seu navegador ou Worker ainda está com versão antiga; publique com `08-VERIFICAR-CORRIGIR-PUBLICAR.ps1` e use `Ctrl + Shift + R`.
 - `schemaReady:false`: banco D1 incompleto ou conectado incorretamente. O script aplica `schema.sql` sem apagar tabelas existentes.
 - `catalogAuth:"unauthorized"`: o TMDB recusou a chave/token armazenado no Secret. Verifique-o no painel Cloudflare; nunca cole tokens no chat ou GitHub.
 - `catalogAuth:"unavailable"`: a chamada TMDB falhou por conexão/limite/tempo; tente novamente e confira logs do Worker.
@@ -93,3 +93,29 @@ O TMDB exige atribuição em uma área de créditos legais; por isso, o crédito
 - `externalEmbedsSupported:false`: o player com iframe de terceiros foi removido porque mostrou erros de CSP; a variável antiga `ENABLE_EXTERNAL_EMBEDS` não ativa esse recurso. Não tente relaxar CSP para contornar bloqueios do fornecedor.
 
 Este pacote mantém o código do site, corrige diagnóstico e atualização de versão, exibe indisponibilidade com clareza e preserva o tempo de reprodução gravado no D1. **A publicação em sua Cloudflare depende da execução do script no seu PC e de credenciais válidas.**
+
+
+## Integração opcional com o player do guia enviado — v1.4.0
+
+O ZIP `se_player(1).zip` contém **um arquivo PHP** que chama `https://getsuperembed.link` e redireciona o navegador para um URL externo. Cloudflare Workers não executa esse PHP. O arquivo recebido ainda usa `CURLOPT_SSL_VERIFYPEER=FALSE` (inseguro); ele **não foi copiado**. Em vez disso, o LISOFLIX suporta a modalidade simples de `iframe` fornecida pelo guia, que é compatível com Workers. **Não garante que o servidor externo funcione, aceite incorporação ou não exiba anúncios.** Não use para exibir conteúdo sem direitos de distribuição/incorporação.
+
+**Para títulos cuja incorporação está autorizada**, siga este processo:
+
+1. Faça backup do banco; execute `npx.cmd wrangler d1 execute lisoflix-db --remote --file=./schema.sql` para criar a tabela nova `playback_embeds` (não altera contas existentes).
+2. Configure a variável `ENABLE_EXTERNAL_EMBEDS` como `true` no `wrangler.jsonc` e publique com `npx.cmd wrangler deploy`. O pacote vem com `false` por segurança. Variáveis alteradas só no painel podem ser sobrescritas durante um deploy posterior.
+3. Cadastre **cada título autorizado**, com seu ID TMDB correto. Exemplo de sintaxe com ID fictício de teste (substitua):
+
+```sql
+INSERT OR REPLACE INTO playback_embeds(media_type,media_id,season,episode,provider,mode,label,enabled)
+VALUES ('movie',123456,0,0,'multiembed','standard','Player autorizado',1);
+```
+
+Para episódios, use `media_type='tv'`, `season` e `episode` reais; o `mode` pode ser `vip` para tentar a variante documentada `/directstream.php`, sem garantia de resposta.
+
+O backend monta links com `video_id`, `tmdb=1` e, para episódios, `s` e `e`, sem aceitar URL arbitrária vinda da interface. O iframe usa sandbox **sem** `allow-popups` e **sem** permissão de navegação de nível superior. Alguns provedores podem não funcionar sob essa proteção. O usuário não recebe controles falsos para vídeos externos: barra de tempo, idioma, áudio e legendas são de responsabilidade do próprio fornecedor. Progresso exato só está disponível no player nativo, a menos que o fornecedor ofereça uma API formal e autorizada.
+
+**Não há reprodução automática de todos os filmes do TMDB.** Ter o título no catálogo não implica licença, fonte válida ou direito de incorporação.
+
+### Atualização para GitHub e Cloudflare
+
+O script `09-ATUALIZAR-GITHUB.ps1` envia esta versão ao repositório existente sem publicar bancos ou Secrets. O `10-PUBLICAR-CLOUDFLARE.ps1` verifica o UUID D1, salva backup local fora do repositório, aplica `schema.sql`, executa testes e publica o Worker (não atualiza o GitHub). Execute cada script a partir da pasta extraída usando `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\NOME-DO-SCRIPT.ps1`.

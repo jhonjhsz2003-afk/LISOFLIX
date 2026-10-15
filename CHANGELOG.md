@@ -1,3 +1,11 @@
+# LISOFLIX 1.4.0 — análise e compatibilidade do player externo
+
+- Estudado `se_player.php` enviado: PHP utiliza serviço externo de redirecionamento e desativa a verificação de TLS; o arquivo PHP não é executável em Cloudflare Workers e não foi integrado.
+- Novo suporte a iframe externo documentado (modal e política CSP restritos), com controles pertencentes à origem terceira, sem anúncios e pop-ups garantidamente removidos.
+- Cadastro manual de fonte incorporada autorizado por título via `playback_embeds`, sem modificar dados antigos do D1 ou inferir direitos de exibição a partir de metadados.
+- Variável `ENABLE_EXTERNAL_EMBEDS=false` por padrão; habilitação explícita quando usuário tiver permissão de reprodução, com alternativa de arquivo MP4/WebM autorizado ainda prioritária.
+- Cache bust de assets para 1.4.0, relatório de diagnóstico e testes da integração.
+
 # Registro de alterações — LISOFLIX
 
 ## v1.3.1 (14/10/2026)

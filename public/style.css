@@ -192,3 +192,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 @media(prefers-reduced-motion:reduce){.tile:hover .tile-img{transform:none}.rail-scroll{scroll-behavior:auto}}
 
 .header-back{color:#fafafa;flex-shrink:0}.header-back:hover{background:#ffffff1f}@media(max-width:600px){.header-back{width:29px;height:29px;padding:5px}.site-head{gap:5px}}
+
+/* LISOFLIX 1.4 - player incorporado sem controle ilusório do iframe */
+.embed-video-wrap{height:100%;width:100%;display:flex;flex-direction:column;background:#050609;min-height:350px}
+.embed-video-frame{border:0;width:100%;flex:1;min-height:280px;aspect-ratio:16/9;background:#050609}
+.embed-notice{font-size:.77rem;text-align:center;color:#c2c2ca;background:#0b0c11;padding:10px 18px;line-height:1.5}
+@media(max-width:700px){.embed-video-wrap{min-height:220px}.embed-video-frame{min-height:200px}.embed-notice{font-size:.68rem}}

@@ -7,7 +7,9 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
   "d1_databases": [
     {
@@ -17,9 +19,12 @@
     }
   ],
   "triggers": {
-    "crons": ["*/30 * * * *"]
+    "crons": [
+      "*/30 * * * *"
+    ]
   },
   "vars": {
-    "SITE_NAME": "LISOFLIX"
+    "SITE_NAME": "LISOFLIX",
+    "ENABLE_EXTERNAL_EMBEDS": "false"
   }
 }
