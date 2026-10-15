@@ -1,3 +1,12 @@
+# LISOFLIX v1.6.4 — segundo player e tela de reprodução limpa
+
+- EmbedMovies permanece como player principal. SuperEmbed passa a ser opção secundária via `ENABLE_SUPEREMBED_FALLBACK`, com URLs do fornecedor geradas por ID TMDB, temporada e episódio.
+- Alternância manual entre players na barra superior, com apenas um iframe ativo por vez.
+- Removidas as duas barras inferiores de avisos e ações do player; recarregar fica no topo.
+- CSP limitada aos domínios conhecidos dos provedores e `sandbox` sem pop-ups. Nenhuma migração ou alteração no banco D1.
+- API relata `availabilityVerified:false` porque a existência de uma URL não comprova disponibilidade; mantém fontes bloqueadas e vídeos nativos com prioridade.
+- 66 testes locais aprovados; o funcionamento real dos provedores requer teste no navegador após o deploy.
+
 ## 1.6.2 — reprodução de séries inspirada no AnimeDragon
 
 - Uso de ID TMDB/temporada/episódio para a montagem da URL documentada do EmbedMovies.
