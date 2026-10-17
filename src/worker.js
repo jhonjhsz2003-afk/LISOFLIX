@@ -1,7 +1,7 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.6.5';
+const APP_VERSION = '1.7.0';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
@@ -42,17 +42,16 @@ const sections = {
 function iframeFeatureEnabled(env) {return String(env.ENABLE_EXTERNAL_EMBEDS||'').toLowerCase()==='true';}
 // Descoberta por ID, como no AnimeDragon. Ativar somente para o catálogo com direito de exibição.
 function automaticEmbedsEnabled(env) {return iframeFeatureEnabled(env)&&String(env.ENABLE_EMBEDMOVIES_AUTOMATIC||'').toLowerCase()==='true';}
-// Segundo fornecedor opcional, ativado somente para conteúdos cujo iframe pode ser exibido.
-// Não tenta verificar por onload: carregar iframe não comprova que existe vídeo.
+// O provedor secundário é opcional. A URL documentada em /api é um iframe;
+// não há API confirmada para detectar rótulos de publicidade dentro do iframe.
 function secondaryPlayerEnabled(env) {
- return iframeFeatureEnabled(env)&&String(env.ENABLE_SUPEREMBED_FALLBACK||'').toLowerCase()==='true';
+ return iframeFeatureEnabled(env)&&String(env.ENABLE_CINEVEOK_FALLBACK||'').toLowerCase()==='true';
 }
-function superEmbedUrl(type,id,season,episode) {
- if(!safeMedia(type,id)||type==='tv'&&(!Number.isInteger(season)||season<1||!Number.isInteger(episode)||episode<1))return null;
- if(type==='movie'&&(season!==0||episode!==0))return null;
- const query=new URLSearchParams({video_id:String(id),tmdb:'1'});
- if(type==='tv'){query.set('s',String(season));query.set('e',String(episode));}
- return `https://multiembed.mov/?${query.toString()}`;
+function cineveokUrl(type,id,season,episode) {
+ if(!safeMedia(type,id))return null;
+ if(type==='movie')return season===0&&episode===0?`https://cineveok.firebaseapp.com/embed/movie/${id}`:null;
+ if(!Number.isInteger(season)||season<1||season>100||!Number.isInteger(episode)||episode<1||episode>2000)return null;
+ return `https://cineveok.firebaseapp.com/embed/tv/${id}/${season}/${episode}`;
 }
 function licensedEmbedUrl(type,id,season,episode,mode='standard') {
  if(!safeMedia(type,id)||mode!=='standard')return null;
@@ -120,7 +119,7 @@ async function authResponse(env,req,userId,profileId=null) {
  return json({user:{email:u.email},profiles:await profiles(env,userId),activeProfile:profileId},200,{'Set-Cookie':cookie('lisoflix_session',token,req,SESSION_AGE)});
 }
 function safeMedia(type,id) {return ['movie','tv'].includes(type)&&Number.isSafeInteger(+id)&&+id>0&&+id<100000000;}
-function cleanSnapshot(o,type,id) {return JSON.stringify({id:+id,media_type:type,title:String(o?.title||o?.name||'').slice(0,120),name:String(o?.name||o?.title||'').slice(0,120),poster_path: /^\/[a-zA-Z0-9]+\.(jpg|png|webp)$/.test(o?.poster_path||'')?o.poster_path:null,backdrop_path:/^\/[a-zA-Z0-9]+\.(jpg|png|webp)$/.test(o?.backdrop_path||'')?o.backdrop_path:null,vote_average:Number(o?.vote_average)||0,overview:String(o?.overview||'').slice(0,700),genre_ids:Array.isArray(o?.genre_ids)?o.genre_ids.slice(0,10):[],first_air_date:String(o?.first_air_date||'').slice(0,10),release_date:String(o?.release_date||'').slice(0,10)});}
+function cleanSnapshot(o,type,id) {return JSON.stringify({watched:o?.watched===true,id:+id,media_type:type,title:String(o?.title||o?.name||'').slice(0,120),name:String(o?.name||o?.title||'').slice(0,120),poster_path: /^\/[a-zA-Z0-9]+\.(jpg|png|webp)$/.test(o?.poster_path||'')?o.poster_path:null,backdrop_path:/^\/[a-zA-Z0-9]+\.(jpg|png|webp)$/.test(o?.backdrop_path||'')?o.backdrop_path:null,vote_average:Number(o?.vote_average)||0,overview:String(o?.overview||'').slice(0,700),genre_ids:Array.isArray(o?.genre_ids)?o.genre_ids.slice(0,10):[],first_air_date:String(o?.first_air_date||'').slice(0,10),release_date:String(o?.release_date||'').slice(0,10)});}
 // Aceita tanto a API Key v3 quanto o API Read Access Token (Bearer).
 // Alguns usuarios colam o token Bearer por engano no Secret TMDB_API_KEY;
 // isso nao deve transformar um token em um parametro ?api_key invalido.
@@ -200,7 +199,7 @@ async function handle(req,env) {
   if(origin&&origin!==url.origin)return fail('Origem não autorizada.',403);
   if(!req.headers.get('Content-Type')?.startsWith('application/json'))return fail('Use application/json.',415);
  }
- if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:iframeFeatureEnabled(env),videoMode:'native-plus-approved-embeds',version:APP_VERSION,automaticEmbeds:automaticEmbedsEnabled(env),secondaryPlayer:secondaryPlayerEnabled(env)?'superembed':null});
+ if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:iframeFeatureEnabled(env),videoMode:'native-plus-approved-embeds',version:APP_VERSION,automaticEmbeds:automaticEmbedsEnabled(env),secondaryPlayer:secondaryPlayerEnabled(env)?'cineveok':null});
  // Uma verificacao publica que nao mostra credenciais, emails, IDs de conta ou URLs privadas.
  if(path==='/api/system-check'&&method==='GET'){
   const db=await databaseHealth(env);let catalogAuth='not-configured';
@@ -304,8 +303,8 @@ async function handle(req,env) {
    const players=[{provider:'embedmovies',label:'EmbedMovies',url:embedUrl,availabilityVerified:false}];
    // Fallback manual: não carregamos dois iframes, nem alegamos detecção de vídeo ausente.
    if(secondaryPlayerEnabled(env)){
-     const backupUrl=superEmbedUrl(type,+id,season,episode);
-     if(backupUrl)players.push({provider:'superembed',label:'SuperEmbed',url:backupUrl,availabilityVerified:false});
+     const backupUrl=cineveokUrl(type,+id,season,episode);
+     if(backupUrl)players.push({provider:'cineveok',label:'PrimeVício',url:backupUrl,availabilityVerified:false});
    }
    return json({available:true,availabilityVerified:false,mode:'iframe',url:embedUrl,
      label:embed?.label||'EmbedMovies',provider:'embedmovies',players,external:true,customControls:false,
@@ -406,8 +405,11 @@ async function handle(req,env) {
  if(!s.profile_id)return fail('Selecione um perfil.',403);
  const owned=await env.DB.prepare('SELECT id,is_kids FROM profiles WHERE id=? AND user_id=?').bind(s.profile_id,s.user_id).first();if(!owned)return fail('Perfil inválido.',403);
  if(path==='/api/library'&&method==='GET'){
-  const [a,b]=await Promise.all([env.DB.prepare('SELECT media_type,media_id,payload FROM my_list WHERE profile_id=? ORDER BY created_at DESC LIMIT 100').bind(s.profile_id).all(),env.DB.prepare('SELECT media_type,media_id,season,episode,payload,updated_at FROM watching WHERE profile_id=? ORDER BY updated_at DESC LIMIT 100').bind(s.profile_id).all()]);
-  return json({list:a.results.map(x=>({...JSON.parse(x.payload),media_type:x.media_type,id:x.media_id})),watching:b.results.map(x=>({...JSON.parse(x.payload),media_type:x.media_type,id:x.media_id,season:x.season,episode:x.episode,updated_at:x.updated_at}))});
+  const [a,b]=await Promise.all([env.DB.prepare('SELECT media_type,media_id,payload FROM my_list WHERE profile_id=? ORDER BY created_at DESC LIMIT 100').bind(s.profile_id).all(),env.DB.prepare(`SELECT w.media_type,w.media_id,w.season,w.episode,w.payload,w.updated_at,p.position_seconds,p.duration_seconds FROM watching w
+    LEFT JOIN playback_progress p ON p.profile_id=w.profile_id AND p.media_type=w.media_type AND p.media_id=w.media_id AND p.season=w.season AND p.episode=w.episode
+    WHERE w.profile_id=? ORDER BY w.updated_at DESC LIMIT 100`).bind(s.profile_id).all()]);
+  const history=b.results.map(x=>({...JSON.parse(x.payload),media_type:x.media_type,id:x.media_id,season:x.season,episode:x.episode,updated_at:x.updated_at,position:x.position_seconds||0,duration:x.duration_seconds||0}));
+  return json({list:a.results.map(x=>({...JSON.parse(x.payload),media_type:x.media_type,id:x.media_id})),watching:history});
  }
  if(path==='/api/library/toggle'&&method==='POST'){
   const b=await bodyJson(req);if(!safeMedia(b.type,b.id))return fail('Título inválido.');
@@ -419,10 +421,22 @@ async function handle(req,env) {
  if(path==='/api/watch'&&method==='POST'){
   const b=await bodyJson(req);if(!safeMedia(b.type,b.id))return fail('Título inválido.');
   const season=Math.max(0,Math.min(100,Number(b.season)||0)),episode=Math.max(0,Math.min(2000,Number(b.episode)||0));
+  const previous=await env.DB.prepare('SELECT payload FROM watching WHERE profile_id=? AND media_type=? AND media_id=?').bind(s.profile_id,b.type,+b.id).first();
+  let wasWatched=false;try{wasWatched=JSON.parse(previous?.payload||'{}').watched===true;}catch{}
   await env.DB.prepare(`INSERT INTO watching(profile_id,media_type,media_id,season,episode,payload,updated_at) VALUES(?,?,?,?,?,?,datetime('now'))
-    ON CONFLICT(profile_id,media_type,media_id) DO UPDATE SET season=excluded.season,episode=excluded.episode,payload=excluded.payload,updated_at=datetime('now')`).bind(s.profile_id,b.type,+b.id,season,episode,cleanSnapshot(b.snapshot,b.type,b.id)).run();
+    ON CONFLICT(profile_id,media_type,media_id) DO UPDATE SET season=excluded.season,episode=excluded.episode,payload=excluded.payload,updated_at=datetime('now')`).bind(s.profile_id,b.type,+b.id,season,episode,cleanSnapshot({...b.snapshot,watched:wasWatched},b.type,b.id)).run();
   if(Number.isFinite(+b.position)&&+b.position>=0){const pos=Math.min(86400,Math.round(+b.position)),dur=Math.max(0,Math.min(86400,Math.round(+b.duration||0)));await env.DB.prepare(`INSERT INTO playback_progress(profile_id,media_type,media_id,season,episode,position_seconds,duration_seconds,updated_at) VALUES (?,?,?,?,?,?,?,datetime('now')) ON CONFLICT(profile_id,media_type,media_id,season,episode) DO UPDATE SET position_seconds=excluded.position_seconds,duration_seconds=excluded.duration_seconds,updated_at=datetime('now')`).bind(s.profile_id,b.type,+b.id,season,episode,pos,dur).run();}
   return json({ok:true});
+ }
+ if(path==='/api/watch/mark'&&method==='POST'){
+  const b=await bodyJson(req);if(!safeMedia(b.type,b.id)||typeof b.watched!=='boolean')return fail('Estado de assistido inválido.');
+  const previous=await env.DB.prepare('SELECT payload,season,episode FROM watching WHERE profile_id=? AND media_type=? AND media_id=?').bind(s.profile_id,b.type,+b.id).first();
+  const epSeason=previous?.season||0,epEpisode=previous?.episode||0;
+  let snapshot=b.snapshot||{};try{if(previous?.payload)snapshot={...JSON.parse(previous.payload),...snapshot};}catch{}
+  const payload=cleanSnapshot({...snapshot,watched:b.watched},b.type,b.id);
+  await env.DB.prepare(`INSERT INTO watching(profile_id,media_type,media_id,season,episode,payload,updated_at) VALUES(?,?,?,?,?,?,datetime('now'))
+   ON CONFLICT(profile_id,media_type,media_id) DO UPDATE SET payload=excluded.payload,updated_at=datetime('now')`).bind(s.profile_id,b.type,+b.id,epSeason,epEpisode,payload).run();
+  return json({ok:true,watched:b.watched});
  }
  if(path==='/api/reactions'&&method==='POST'){
    const b=await bodyJson(req);if(!safeMedia(b.type,b.id)||![1,-1,0].includes(b.vote))return fail('Avaliação inválida.');

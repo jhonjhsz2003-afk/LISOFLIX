@@ -5,32 +5,32 @@ import {DatabaseSync} from 'node:sqlite';
 import app from '../src/worker.js';
 const read=f=>readFileSync(new URL('../'+f,import.meta.url),'utf8');
 function mock(){const s=new DatabaseSync(':memory:');s.exec(read('schema.sql'));return {sqlite:s,DB:{prepare(sql){let args=[];const o={bind(...x){args=x;return o},first(){return s.prepare(sql).get(...args)||null},all(){return {results:s.prepare(sql).all(...args)}},run(){return s.prepare(sql).run(...args)}};return o}}};}
-const opts={ENABLE_EXTERNAL_EMBEDS:'true',ENABLE_EMBEDMOVIES_AUTOMATIC:'true',ENABLE_SUPEREMBED_FALLBACK:'true'};
+const opts={ENABLE_EXTERNAL_EMBEDS:'true',ENABLE_EMBEDMOVIES_AUTOMATIC:'true',ENABLE_CINEVEOK_FALLBACK:'true'};
 async function get(DB,endpoint,flags={}){const res=await app.fetch(new Request('https://lisoflix.test'+endpoint),{DB,ASSETS:{fetch:()=>new Response('ok')},...flags},{});return {status:res.status,value:await res.json()};}
 test('fallback opt-in: player primario continua EmbedMovies e sem a flag so existe uma opcao',async()=>{
  const {DB}=mock();const path='/api/playback?type=movie&id=399566';
- const off=(await get(DB,path,{...opts,ENABLE_SUPEREMBED_FALLBACK:'false'})).value;
+ const off=(await get(DB,path,{...opts,ENABLE_CINEVEOK_FALLBACK:'false'})).value;
  assert.equal(off.url,'https://myembed.biz/filme/399566');
  assert.deepEqual(off.players.map(p=>p.provider),['embedmovies']);
  const on=(await get(DB,path,opts)).value;
  assert.equal(on.available,true);assert.equal(on.url,off.url);
  assert.equal(on.availabilityVerified,false);
- assert.deepEqual(on.players.map(p=>p.provider),['embedmovies','superembed']);
- assert.equal(on.players[1].url,'https://multiembed.mov/?video_id=399566&tmdb=1');
+ assert.deepEqual(on.players.map(p=>p.provider),['embedmovies','cineveok']);
+ assert.equal(on.players[1].url,'https://cineveok.firebaseapp.com/embed/movie/399566');
  assert.equal(on.players[1].availabilityVerified,false);
 });
 test('cadastro explicito oferece fallback mesmo com descoberta automatica desligada',async()=>{
  const {DB,sqlite}=mock();
  sqlite.prepare("INSERT INTO playback_embeds(media_type,media_id,provider,mode) VALUES('movie',399566,'embedmovies','standard')").run();
  const r=(await get(DB,'/api/playback?type=movie&id=399566',{...opts,ENABLE_EMBEDMOVIES_AUTOMATIC:'false'})).value;
- assert.deepEqual(r.players.map(p=>p.provider),['embedmovies','superembed']);
+ assert.deepEqual(r.players.map(p=>p.provider),['embedmovies','cineveok']);
  const missing=(await get(DB,'/api/playback?type=movie&id=99999',{...opts,ENABLE_EMBEDMOVIES_AUTOMATIC:'false'})).value;
  assert.equal(missing.available,false);
 });
 test('episódios usam temporada e episódio exatos no player secundário sem alterar o primário',async()=>{
  const {DB}=mock();const r=(await get(DB,'/api/playback?type=tv&id=157336&season=2&episode=8',opts)).value;
  assert.equal(r.url,'https://myembed.biz/serie/157336/2/8');
- assert.equal(r.players[1].url,'https://multiembed.mov/?video_id=157336&tmdb=1&s=2&e=8');
+ assert.equal(r.players[1].url,'https://cineveok.firebaseapp.com/embed/tv/157336/2/8');
  for(const qs of ['?type=tv&id=157336&season=2&episode=0','?type=tv&id=157336&season=-1&episode=8','?type=movie&id=399566&season=1&episode=1']){
   const bad=await get(DB,'/api/playback'+qs,opts);assert.equal(bad.status,400);
  }
@@ -54,11 +54,11 @@ test('falta de permissao para embeddings não libera alternativa',async()=>{
 });
 test('interface com troca superior, sem barras e sandbox por fornecedor',()=>{
  const ui=read('public/app.js'),css=read('public/style.css'),hdr=read('public/_headers');
- assert.match(ui,/data-action="switchplayer"/);
+ assert.match(ui,/id="player-provider-select"/);
  assert.match(ui,/case 'switchplayer'/);
  assert.match(ui,/playerOptionIndex=0/);
  assert.match(ui,/state.overlay!=='play'\|\|!overlay.querySelector\('\.player-shell'\)/);
- assert.match(ui,/class="player-tools"/);
+ assert.match(ui,/id="player-provider-select"/);
  assert.doesNotMatch(ui,/class="embed-notice"/);
  assert.doesNotMatch(ui,/class="player-banner"/);
  assert.match(ui,/sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"/);
@@ -66,13 +66,13 @@ test('interface com troca superior, sem barras e sandbox por fornecedor',()=>{
  assert.match(ui,/function validEmbedOption\(p\)/);
  assert.doesNotMatch(ui,/allow-popups/);
  assert.match(css,/v1\.6\.4: player sem faixas inferiores/);
- assert.match(hdr,/frame-src.*https:\/\/multiembed\.mov/);
+ assert.match(hdr,/frame-src.*https:\/\/cineveok\.firebaseapp\.com/);
  assert.doesNotMatch(hdr,/frame-src \*/);
 });
 test('status informa que secundário está habilitado sem expor URLs de iframe',async()=>{
  const {DB}=mock();const v=(await get(DB,'/api/config',opts)).value;
- assert.equal(v.version,'1.6.5');assert.equal(v.secondaryPlayer,'superembed');
- assert.doesNotMatch(JSON.stringify(v),/multiembed\.mov/);
- const none=(await get(DB,'/api/config',{...opts,ENABLE_SUPEREMBED_FALLBACK:'false'})).value;
+ assert.equal(v.version,'1.7.0');assert.equal(v.secondaryPlayer,'cineveok');
+ assert.doesNotMatch(JSON.stringify(v),/cineveok\.firebaseapp\.com/);
+ const none=(await get(DB,'/api/config',{...opts,ENABLE_CINEVEOK_FALLBACK:'false'})).value;
  assert.equal(none.secondaryPlayer,null);
 });

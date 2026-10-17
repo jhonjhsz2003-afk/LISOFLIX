@@ -59,6 +59,23 @@ try {
         Copy-Item -LiteralPath $file.FullName -Destination $dest -Force
         $count++
     }
+    # Limpar somente arquivos historicos explicitamente substituidos nesta versao.
+    # Nao apagar outros arquivos ou dados do usuario no repositorio.
+    $obsolete = @(
+      'tests/sandbox-165.test.mjs',
+      'INSTRUCOES-SUPEREMBED-v1.6.5.md',
+      'INSTRUCOES-FALLBACK-v1.6.4.md',
+      'HISTORICO-INSTRUCOES-v1.6.0.md',
+      'INSTRUCOES-ATUALIZACAO-v1.6.0.md',
+      'INSTRUCOES-ATUALIZACAO-v1.6.1.md',
+      'INSTRUCOES-ATUALIZACAO-v1.6.2.md',
+      'INSTRUCOES-COMPARACAO-ANIMEDRAGON-v1.6.2.md',
+      'INSTRUCOES-CORRECOES-v1.6.3.md'
+    )
+    foreach ($relPath in $obsolete) {
+      $target = Join-Path $temp $relPath
+      if (Test-Path -LiteralPath $target -PathType Leaf) { Remove-Item -LiteralPath $target -Force }
+    }
     Write-Host "$count arquivos sincronizados localmente. Criando commit sem forcar historico..." -ForegroundColor Cyan
     $email = (& git -C $temp config user.email | Out-String).Trim()
     if (-not $email) {
