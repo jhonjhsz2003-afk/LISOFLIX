@@ -5,13 +5,13 @@ import {runInNewContext} from 'node:vm';
 const read=f=>readFileSync(new URL('../'+f,import.meta.url),'utf8');
 const ui=read('public/app.js');
 const isolated=ui.slice(ui.indexOf('function validEmbedOption(p){'),ui.indexOf('function trailerModal(){'));
-function render(selected,genreIds=[16],superflixRoute=''){
+function render(selected,genreIds=[16],superflixRoute='',originalLanguage='ja'){
  const sources=[
   {provider:'embedmovies',url:'https://myembed.biz/serie/1434/1/1',label:'EmbedMovies'},
   {provider:'superflix',url:'https://superflixapi.fun/serie/1434/1/1',label:'SuperFlixAPI'},
   {provider:'vidsrc',url:'https://vidsrc.mov/embed/tv/1434/1/1',label:'VidSrc'},
  ];
- return runInNewContext(`${isolated}\nplayerModal();`,{URL,state:{detail:{title:'Teste',id:1434,genre_ids:genreIds},playerEpisode:{season:1,episode:1},playerOptionIndex:selected,superflixRoute,playback:{available:true,mode:'iframe',players:sources}},esc:v=>String(v),icon:()=>'',title:d=>d.title,dVideo:()=>null,pics:()=>''});
+ return runInNewContext(`${isolated}\nplayerModal();`,{URL,state:{detail:{title:'Teste',id:1434,genre_ids:genreIds,original_language:originalLanguage},playerEpisode:{season:1,episode:1},playerOptionIndex:selected,superflixRoute,playback:{available:true,mode:'iframe',players:sources}},esc:v=>String(v),icon:()=>'',title:d=>d.title,dVideo:()=>null,pics:()=>''});
 }
 test('as tres fontes continuam presentes e ativas na interface',()=>{
  const html=render(0);
@@ -40,4 +40,26 @@ test('origem do provider permanece validada, inclusive para /anime',()=>{
  for(const bad of ['https://superflixapi.fun.evil.invalid/anime/1434/1/1','https://superflixapi.fun/anime/1434/1/1?q=x','http://superflixapi.fun/anime/1434/1/1']){
   assert.equal(runInNewContext(`${isolated}\nvalidEmbedOption({provider:'superflix',url:${JSON.stringify(bad)}})`,{URL}),false);
  }
+});
+
+test('desenho ocidental nao recebe a rota anime usada para animacao japonesa',()=>{
+ const western=render(1,[16],'','en');
+ assert.match(western,/src="https:\/\/superflixapi\.fun\/serie\/1434\/1\/1"/);
+ assert.doesNotMatch(western,/src="https:\/\/superflixapi\.fun\/anime\/1434/);
+ assert.doesNotMatch(western,/data-action="superflixroute"/);
+ const japanese=render(1,[16],'','ja');
+ assert.match(japanese,/src="https:\/\/superflixapi\.fun\/anime\/1434\/1\/1"/);
+});
+test('ajuda so aparece quando solicitada e nunca remove opcao de trocar fonte',()=>{
+ const html=render(1);
+ assert.match(html,/data-action="playerhelp"/);
+ assert.doesNotMatch(html,/class="player-help-panel"/);
+ const sources=[{provider:'embedmovies',url:'https://myembed.biz/serie/1434/1/1'},
+ {provider:'superflix',url:'https://superflixapi.fun/serie/1434/1/1'},
+ {provider:'vidsrc',url:'https://vidsrc.mov/embed/tv/1434/1/1'}];
+ const open=runInNewContext(`${isolated}
+playerModal();`,{URL,state:{detail:{title:'Teste',id:1434,original_language:'en'},playerEpisode:{season:1,episode:1},playerOptionIndex:1,playback:{available:true,mode:'iframe',players:sources},playerHelpOpen:true},esc:v=>String(v),icon:()=>'',title:d=>d.title,dVideo:()=>null,pics:()=>''});
+ assert.match(open,/class="player-help-panel"/);
+ assert.match(open,/data-action="switchplayer"/);
+ assert.match(open,/404/);
 });

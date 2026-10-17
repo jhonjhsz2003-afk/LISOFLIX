@@ -10,7 +10,7 @@ function mock(){const sqlite=new DatabaseSync(':memory:');sqlite.exec(read('sche
 async function api(DB,url){const r=await app.fetch(new Request('https://site.example'+url),{DB,...vars,ASSETS:{fetch:()=>new Response('ok')}},{});return {status:r.status,data:await r.json()};}
 test('as tres opcoes vem da API em ordem: EmbedMovies, SuperFlixAPI e VidSrc',async()=>{
  const {DB}=mock();const c=(await api(DB,'/api/config')).data;
- assert.equal(c.version,'1.7.4'); assert.deepEqual(c.fallbackPlayers,['superflix','vidsrc']);
+ assert.equal(c.version,'1.7.5'); assert.deepEqual(c.fallbackPlayers,['superflix','vidsrc']);
  for(const [url,expected] of [
   ['/api/playback?type=movie&id=969681',['https://myembed.biz/filme/969681','https://superflixapi.fun/filme/969681','https://vidsrc.mov/embed/movie/969681']],
   ['/api/playback?type=tv&id=1396&season=2&episode=3',['https://myembed.biz/serie/1396/2/3','https://superflixapi.fun/serie/1396/2/3','https://vidsrc.mov/embed/tv/1396/2/3']]

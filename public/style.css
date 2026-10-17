@@ -325,3 +325,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .player-route-toggle{border-color:#5b6680;background:#202638;color:#eceff7;white-space:nowrap}
 .player-route-toggle:hover{background:#323b51}
 @media(max-width:650px){.player-route-toggle{max-width:94px;overflow:hidden;text-overflow:ellipsis;font-size:10px}}
+
+/* v1.7.5: ajuda sob demanda, sem ocupar faixa inferior ou interceptar o video. */
+.player-shell{position:relative}
+.player-toolbar{position:relative;z-index:7}
+.player-help-panel{position:absolute;right:clamp(12px,3vw,48px);top:73px;z-index:8;width:min(390px,calc(100vw - 24px));padding:20px;border:1px solid #ffffff3b;border-radius:15px;background:#141820f5;color:#f3f3f7;box-shadow:0 18px 60px #000a;backdrop-filter:blur(12px)}
+.player-help-panel strong{font-size:16px}
+.player-help-panel p{font-size:13px;color:#cbd0da;line-height:1.55;margin:12px 0}
+.player-help-panel small{display:block;font-size:11px;color:#aeb5c6;line-height:1.5;margin-top:11px}
+.player-help-next{border-radius:9px;border:1px solid #ff794b;background:#d94429;color:white;font-size:13px;padding:11px 14px;cursor:pointer;font-weight:800;display:flex;align-items:center;gap:7px}
+.player-help-next:hover,.player-help-next:focus-visible{background:#ee5537}
+.player-help-close{position:absolute;right:9px;top:8px;background:transparent;border:0;color:white;cursor:pointer;font-size:25px;padding:0 7px}
+@media(max-width:700px){.player-help-panel{top:77px}.player-help-trigger{font-size:0;padding:0 8px}.player-help-trigger::after{content:'?';font-size:15px}}
