@@ -71,22 +71,22 @@ test('interface com troca superior, sem barras e sandbox por fornecedor',()=>{
 });
 test('status informa que secundário está habilitado sem expor URLs de iframe',async()=>{
  const {DB}=mock();const v=(await get(DB,'/api/config',opts)).value;
- assert.equal(v.version,'1.7.1');assert.equal(v.secondaryPlayer,'vidsrc');
+ assert.equal(v.version,'1.7.2');assert.equal(v.secondaryPlayer,'vidsrc');
  assert.doesNotMatch(JSON.stringify(v),/vidsrc\.mov/);
  const none=(await get(DB,'/api/config',{...opts,ENABLE_VIDSRC_FALLBACK:'false'})).value;
  assert.equal(none.secondaryPlayer,null);
 });
 
-test('SuperFlix experimental inicia desligado e so aparece com opt-in',async()=>{
+test('SuperFlix habilitado por flag aparece antes do VidSrc e sem inventar disponibilidade',async()=>{
  const {DB}=mock();const url='/api/playback?type=movie&id=969681';
  const off=(await get(DB,url,opts)).value;
  assert.deepEqual(off.players.map(p=>p.provider),['embedmovies','vidsrc']);
  const on=(await get(DB,url,{...opts,ENABLE_SUPERFLIX_FALLBACK:'true'})).value;
- assert.deepEqual(on.players.map(p=>p.provider),['embedmovies','vidsrc','superflix']);
- assert.equal(on.players[2].url,'https://superflixapi.fun/filme/969681');
- assert.equal(on.players[2].availabilityVerified,false);
+ assert.deepEqual(on.players.map(p=>p.provider),['embedmovies','superflix','vidsrc']);
+ assert.equal(on.players[1].url,'https://superflixapi.fun/filme/969681');
+ assert.equal(on.players[1].availabilityVerified,false);
  const tv=(await get(DB,'/api/playback?type=tv&id=157336&season=1&episode=9',{...opts,ENABLE_SUPERFLIX_FALLBACK:'true'})).value;
- assert.equal(tv.players[2].url,'https://superflixapi.fun/serie/157336/1/9');
+ assert.equal(tv.players[1].url,'https://superflixapi.fun/serie/157336/1/9');
 });
 test('SuperFlix nao pode ignorar fonte desativada no D1',async()=>{
  const {DB,sqlite}=mock();

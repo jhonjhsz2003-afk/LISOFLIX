@@ -37,7 +37,7 @@ test('bloqueio D1 expresso prevalece e outros fornecedores nao sao liberados',as
 test('configuração padrão não libera embeds automaticamente',async()=>{
  const {api}=makeDB();
  const r=await handler.fetch(new Request('https://lisoflix.test/api/config'),{DB:api,ENABLE_EXTERNAL_EMBEDS:'true'},{});
- const d=await r.json();assert.equal(d.automaticEmbeds,false);assert.equal(d.version,'1.7.1');
+ const d=await r.json();assert.equal(d.automaticEmbeds,false);assert.equal(d.version,'1.7.2');
 });
 test('catálogo progressivo entrega a primeira página antes das páginas seguintes',()=>{
  const ui=text('public/app.js');
@@ -45,5 +45,5 @@ test('catálogo progressivo entrega a primeira página antes das páginas seguin
  assert.match(ui,/renderCatalogWithoutScrollJump\(page\)/);
  assert.match(ui,/void limitedPool\(more,3/);
  assert.match(ui,/await Promise\.all\(\[\s*api\('\/api\/config'/);
- assert.match(text('public/index.html'),/app\.js\?v=1\.7\.1/);
+ assert.match(text('public/index.html'),/app\.js\?v=1\.7\.2/);
 });

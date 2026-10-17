@@ -6,14 +6,14 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 async function req(path,env={}){const r=await handler.fetch(new Request('https://lisoflix.example'+path),{ASSETS:{fetch:()=>new Response('html')},...env},{});return {status:r.status,json:await r.json()};}
 test('system-check publico nao exibe segredos e relata fontes ausentes',async()=>{
  const env={TMDB_API_KEY:undefined};const data=(await req('/api/system-check',env)).json;
- assert.equal(data.version,'1.7.1');assert.equal(data.catalogAuth,'not-configured');
+ assert.equal(data.version,'1.7.2');assert.equal(data.catalogAuth,'not-configured');
  assert.equal(data.database,false);assert.equal(data.activeSources,null);
  assert.equal(data.externalEmbedsSupported,true);
  assert.equal(JSON.stringify(data).includes('TMDB_API_KEY'),false);
 });
 test('cache bust em CSS e JS evita mostrar frontend antigo',()=>{
- const page=read('public/index.html');assert.match(page,/\/app\.js\?v=1\.7\.1/);
- assert.match(page,/\/style\.css\?v=1\.7\.1/);
+ const page=read('public/index.html');assert.match(page,/\/app\.js\?v=1\.7\.2/);
+ assert.match(page,/\/style\.css\?v=1\.7\.2/);
  const headers=read('public/_headers');assert.match(headers,/\/app\.js\n\s+Cache-Control: no-cache/);
 });
 test('script de deploy preserva dados e impede backup em repositorio publico',()=>{

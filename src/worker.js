@@ -1,7 +1,7 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.7.2';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
@@ -48,12 +48,13 @@ function vidsrcEnabled(env) {
  return iframeFeatureEnabled(env)&&String(env.ENABLE_VIDSRC_FALLBACK||'').toLowerCase()==='true';
 }
 function superflixEnabled(env) {
- // A documentação em superflixapi.fun/doc retornou 403 no preparo desta versão.
- // Opt-in: só ativar após conferir formato, autorização e funcionamento no navegador.
+ // Os formatos /filme/{id} e /serie/{id}/{temporada}/{episodio} foram
+ // documentados nas capturas fornecidas pelo administrador do site.
+ // A disponibilidade e os direitos de exibicao nao sao verificados pela URL.
  return iframeFeatureEnabled(env)&&String(env.ENABLE_SUPERFLIX_FALLBACK||'').toLowerCase()==='true';
 }
 function fallbackProviders(env) {
- return [vidsrcEnabled(env)&&'vidsrc',superflixEnabled(env)&&'superflix'].filter(Boolean);
+ return [superflixEnabled(env)&&'superflix',vidsrcEnabled(env)&&'vidsrc'].filter(Boolean);
 }
 function providerUrl(provider,type,id,season,episode) {
  if(!safeMedia(type,id))return null;
@@ -316,7 +317,7 @@ async function handle(req,env) {
    // Troca manual: iframes de outras origens não expõem se há fontes ou anúncios.
    for(const name of fallbackProviders(env)) {
      const link=providerUrl(name,type,+id,season,episode);
-     if(link)players.push({provider:name,label:name==='vidsrc'?'VidSrc':'SuperFlix (experimental)',url:link,availabilityVerified:false});
+     if(link)players.push({provider:name,label:name==='vidsrc'?'VidSrc':'SuperFlixAPI',url:link,availabilityVerified:false});
    }
    return json({available:true,availabilityVerified:false,mode:'iframe',url:embedUrl,
      label:embed?.label||'EmbedMovies',provider:'embedmovies',players,external:true,customControls:false,
