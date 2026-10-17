@@ -1,4 +1,4 @@
-# LISOFLIX 1.7.3 | enviar a pasta ZIP ao GitHub sem force-push.
+# LISOFLIX 1.7.4 | enviar a pasta ZIP ao GitHub sem force-push.
 $ErrorActionPreference='Stop'
 if (-not $PSScriptRoot) { throw 'Execute como arquivo PS1, nao cole linhas no console.' }
 Set-Location -LiteralPath $PSScriptRoot

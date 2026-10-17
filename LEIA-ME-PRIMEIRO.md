@@ -1,4 +1,4 @@
-# LISOFLIX v1.7.3 — Três fontes de reprodução
+# LISOFLIX v1.7.4 — Três fontes de reprodução
 
 Este pacote preserva as contas, os perfis, os comentários e o histórico. **Não executa migração nem limpa o Cloudflare D1.**
 
@@ -18,8 +18,18 @@ O seletor na barra superior oferece: **Principal · EmbedMovies**, **Alternativa
 2. Abra o PowerShell nessa pasta e execute `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\10-PUBLICAR-CLOUDFLARE.ps1"`.
 3. O script valida a conta e o banco D1 por UUID, pede confirmação, salva backup, executa os testes e publica **sem migrações**.
 4. Atualize o repositório GitHub com `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\09-ATUALIZAR-GITHUB.ps1"`.
-5. Confira `/api/config` para ver `version: "1.7.3"` e `fallbackPlayers: ["superflix","vidsrc"]`. Teste as três fontes em filmes e episódios autorizados.
+5. Confira `/api/config` para ver `version: "1.7.4"` e `fallbackPlayers: ["superflix","vidsrc"]`. Teste as três fontes em filmes e episódios autorizados.
 
 ## Limitações conhecidas
 
 Os testes locais verificam o código e as URLs geradas, não confirmam reprodução real do fornecedor, nem eliminam erros remotos, 404, restrições do navegador ou publicidade. Não altere `TMDB_API_KEY` nem as tabelas do D1 para corrigir 404s de outros domínios.
+
+
+## Compatibilidade dos provedores (v1.7.4)
+- EmbedMovies: fonte 1. O iframe e carregado em ambiente restrito.
+- SuperFlixAPI: fonte 2. A publicidade em janelas separadas e permitida pelo atributo `allow-popups`, mas o iframe continua sem permissoes de navegacao de pagina principal. Anuncios podem surgir de sites de terceiros; isso nao garante disponibilidade de video e nao altera verificacoes Cloudflare.
+- SuperFlixAPI para animacoes: quando o TMDB classifica o titulo como animacao, o frontend tenta por padrao `/anime/ID/TEMP/EP` (formato fornecido pelo painel do provedor); o botao `Tentar serie` permite testar a rota geral `/serie/ID/TEMP/EP` caso a primeira falhe. Para series comuns, permanece `/serie/ID/TEMP/EP`.
+- VidSrc: fonte 3. O iframe dessa fonte nao usa `sandbox` porque o provedor informou que nao funciona com ele. A integracao usa apenas URLs HTTPS aprovadas.
+- O site nao consegue detectar conteudo premium, 404 de um documento dentro de iframe, verificacao Cloudflare ou anuncios internos em outra origem. O usuario pode escolher `Outra fonte`; nao ha promessa de disponibilidade automatica.
+- Use somente fontes de exibicao autorizada. Caso surjam anuncios invasivos ou redirecionamentos, desative a fonte respectiva no `wrangler.jsonc` e publique novamente.
+- Nao executar migracoes nem `schema.sql` no D1 nesta atualizacao. O script de deploy testa a conta e exporta backup.

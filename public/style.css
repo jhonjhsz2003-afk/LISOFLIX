@@ -320,3 +320,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .player-next-source:hover,.player-next-source:focus-visible{background:#eb603c55}
 @media(max-width:860px){.player-next-source span{display:none}.player-next-source{min-width:42px;justify-content:center;padding:0 10px}}
 @media(max-width:570px){.player-select-label select{max-width:125px}.player-tools{gap:4px}.player-toolbar .player-tool-icon{min-width:36px;min-height:39px}.player-toolbar h2{max-width:27vw}}
+
+/* v1.7.4: escolha compacta da segunda rota oficial para animacoes. */
+.player-route-toggle{border-color:#5b6680;background:#202638;color:#eceff7;white-space:nowrap}
+.player-route-toggle:hover{background:#323b51}
+@media(max-width:650px){.player-route-toggle{max-width:94px;overflow:hidden;text-overflow:ellipsis;font-size:10px}}

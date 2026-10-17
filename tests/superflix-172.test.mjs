@@ -11,7 +11,7 @@ test('As tres fontes aparecem na configuracao padrao, preservando prioridade',as
  assert.equal(defaults.ENABLE_SUPERFLIX_FALLBACK,'true');
  assert.equal(defaults.ENABLE_VIDSRC_FALLBACK,'true');
  const {DB}=mock();const conf=(await get(DB,'/api/config')).json;
- assert.equal(conf.version,'1.7.3');
+ assert.equal(conf.version,'1.7.4');
  assert.deepEqual(conf.fallbackPlayers,['superflix','vidsrc']);
  assert.equal(conf.secondaryPlayer,'superflix');
 });

@@ -1,4 +1,4 @@
-# LISOFLIX v1.7.3 - atualizar Worker sem modificar tabelas do banco D1.
+# LISOFLIX v1.7.4 - atualizar Worker sem modificar tabelas do banco D1.
 # Execute dentro da pasta extraida. Mantenha o UUID real no wrangler.jsonc.
 $ErrorActionPreference = 'Stop'
 if (-not $PSScriptRoot) { throw 'Execute este arquivo .ps1 a partir da pasta extraida.' }
@@ -35,7 +35,7 @@ try {
   Run 'npm.cmd' @('test')
   # NAO executa schema.sql, DROP, UPDATE, ou migracoes nesta atualizacao.
   Run 'npx.cmd' @('wrangler','deploy')
-  Write-Host 'LISOFLIX v1.7.3 publicado. Nenhuma tabela do D1 foi modificada pelo script.' -ForegroundColor Green
+  Write-Host 'LISOFLIX v1.7.4 publicado. Nenhuma tabela do D1 foi modificada pelo script.' -ForegroundColor Green
   Write-Host 'Confira /api/health e /api/system-check e teste o layout no navegador.' -ForegroundColor Cyan
 } catch {
   Write-Host "ERRO: $($_.Exception.Message)" -ForegroundColor Red

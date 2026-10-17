@@ -64,14 +64,14 @@ test('interface com troca superior, sem barras e sandbox por fornecedor',()=>{
  assert.match(ui,/sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"/);
  assert.match(ui,/embedSandboxAttr\(activeEmbed\)/);
  assert.match(ui,/function validEmbedOption\(p\)/);
- assert.doesNotMatch(ui,/allow-popups/);
+ assert.match(ui,/allow-popups/);assert.doesNotMatch(ui,/allow-top-navigation/);
  assert.match(css,/v1\.6\.4: player sem faixas inferiores/);
  assert.match(hdr,/frame-src.*https:\/\/vidsrc\.mov.*https:\/\/superflixapi\.fun/);
  assert.doesNotMatch(hdr,/frame-src \*/);
 });
 test('status informa que secundário está habilitado sem expor URLs de iframe',async()=>{
  const {DB}=mock();const v=(await get(DB,'/api/config',opts)).value;
- assert.equal(v.version,'1.7.3');assert.equal(v.secondaryPlayer,'vidsrc');
+ assert.equal(v.version,'1.7.4');assert.equal(v.secondaryPlayer,'vidsrc');
  assert.doesNotMatch(JSON.stringify(v),/vidsrc\.mov/);
  const none=(await get(DB,'/api/config',{...opts,ENABLE_VIDSRC_FALLBACK:'false'})).value;
  assert.equal(none.secondaryPlayer,null);
