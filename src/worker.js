@@ -1,7 +1,7 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
@@ -42,16 +42,28 @@ const sections = {
 function iframeFeatureEnabled(env) {return String(env.ENABLE_EXTERNAL_EMBEDS||'').toLowerCase()==='true';}
 // Descoberta por ID, como no AnimeDragon. Ativar somente para o catálogo com direito de exibição.
 function automaticEmbedsEnabled(env) {return iframeFeatureEnabled(env)&&String(env.ENABLE_EMBEDMOVIES_AUTOMATIC||'').toLowerCase()==='true';}
-// O provedor secundário é opcional. A URL documentada em /api é um iframe;
-// não há API confirmada para detectar rótulos de publicidade dentro do iframe.
-function secondaryPlayerEnabled(env) {
- return iframeFeatureEnabled(env)&&String(env.ENABLE_CINEVEOK_FALLBACK||'').toLowerCase()==='true';
+// Fontes alternativas: URLs de incorporação não são prova de disponibilidade nem licença.
+// VidSrc: rotas confirmadas pelo site vidsrc.mov; não há suporte documentado a animes.
+function vidsrcEnabled(env) {
+ return iframeFeatureEnabled(env)&&String(env.ENABLE_VIDSRC_FALLBACK||'').toLowerCase()==='true';
 }
-function cineveokUrl(type,id,season,episode) {
+function superflixEnabled(env) {
+ // A documentação em superflixapi.fun/doc retornou 403 no preparo desta versão.
+ // Opt-in: só ativar após conferir formato, autorização e funcionamento no navegador.
+ return iframeFeatureEnabled(env)&&String(env.ENABLE_SUPERFLIX_FALLBACK||'').toLowerCase()==='true';
+}
+function fallbackProviders(env) {
+ return [vidsrcEnabled(env)&&'vidsrc',superflixEnabled(env)&&'superflix'].filter(Boolean);
+}
+function providerUrl(provider,type,id,season,episode) {
  if(!safeMedia(type,id))return null;
- if(type==='movie')return season===0&&episode===0?`https://cineveok.firebaseapp.com/embed/movie/${id}`:null;
- if(!Number.isInteger(season)||season<1||season>100||!Number.isInteger(episode)||episode<1||episode>2000)return null;
- return `https://cineveok.firebaseapp.com/embed/tv/${id}/${season}/${episode}`;
+ if(type==='movie'&&(season!==0||episode!==0))return null;
+ if(type==='tv'&&(!Number.isInteger(season)||season<1||season>100||!Number.isInteger(episode)||episode<1||episode>2000))return null;
+ if(provider==='vidsrc')return type==='movie'
+  ?`https://vidsrc.mov/embed/movie/${id}`:`https://vidsrc.mov/embed/tv/${id}/${season}/${episode}`;
+ if(provider==='superflix')return type==='movie'
+  ?`https://superflixapi.fun/filme/${id}`:`https://superflixapi.fun/serie/${id}/${season}/${episode}`;
+ return null;
 }
 function licensedEmbedUrl(type,id,season,episode,mode='standard') {
  if(!safeMedia(type,id)||mode!=='standard')return null;
@@ -199,7 +211,7 @@ async function handle(req,env) {
   if(origin&&origin!==url.origin)return fail('Origem não autorizada.',403);
   if(!req.headers.get('Content-Type')?.startsWith('application/json'))return fail('Use application/json.',415);
  }
- if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:iframeFeatureEnabled(env),videoMode:'native-plus-approved-embeds',version:APP_VERSION,automaticEmbeds:automaticEmbedsEnabled(env),secondaryPlayer:secondaryPlayerEnabled(env)?'cineveok':null});
+ if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:iframeFeatureEnabled(env),videoMode:'native-plus-approved-embeds',version:APP_VERSION,automaticEmbeds:automaticEmbedsEnabled(env),secondaryPlayer:fallbackProviders(env)[0]||null,fallbackPlayers:fallbackProviders(env)});
  // Uma verificacao publica que nao mostra credenciais, emails, IDs de conta ou URLs privadas.
  if(path==='/api/system-check'&&method==='GET'){
   const db=await databaseHealth(env);let catalogAuth='not-configured';
@@ -216,7 +228,7 @@ async function handle(req,env) {
     activeEmbeds=embeds?.total??0;
    } catch(e) { console.warn('Playback counts unavailable', e?.message); }
   }
-  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-plus-approved-embeds',activeSources,activeEmbeds,externalEmbedsSupported:true,externalEmbedsEnabled:iframeFeatureEnabled(env),automaticEmbedsEnabled:automaticEmbedsEnabled(env),secondaryPlayerEnabled:secondaryPlayerEnabled(env)});
+  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-plus-approved-embeds',activeSources,activeEmbeds,externalEmbedsSupported:true,externalEmbedsEnabled:iframeFeatureEnabled(env),automaticEmbedsEnabled:automaticEmbedsEnabled(env),secondaryPlayerEnabled:fallbackProviders(env).length>0,fallbackPlayers:fallbackProviders(env)});
  }
  if(path==='/api/tmdb/check'&&method==='GET'){
   if(!tmdbReady(env))return json({configured:false,authorized:false,error:'Secret de catálogo não configurado.'},503);
@@ -301,10 +313,10 @@ async function handle(req,env) {
    if(!embedUrl)return json({available:false,reason:'invalid-embed'});
    // A geração da URL não verifica o catálogo ou os direitos do provedor.
    const players=[{provider:'embedmovies',label:'EmbedMovies',url:embedUrl,availabilityVerified:false}];
-   // Fallback manual: não carregamos dois iframes, nem alegamos detecção de vídeo ausente.
-   if(secondaryPlayerEnabled(env)){
-     const backupUrl=cineveokUrl(type,+id,season,episode);
-     if(backupUrl)players.push({provider:'cineveok',label:'PrimeVício',url:backupUrl,availabilityVerified:false});
+   // Troca manual: iframes de outras origens não expõem se há fontes ou anúncios.
+   for(const name of fallbackProviders(env)) {
+     const link=providerUrl(name,type,+id,season,episode);
+     if(link)players.push({provider:name,label:name==='vidsrc'?'VidSrc':'SuperFlix (experimental)',url:link,availabilityVerified:false});
    }
    return json({available:true,availabilityVerified:false,mode:'iframe',url:embedUrl,
      label:embed?.label||'EmbedMovies',provider:'embedmovies',players,external:true,customControls:false,

@@ -289,12 +289,13 @@ function syncVideoControls(video){const seek=$('#video-seek'),clockEl=$('#video-
 function validEmbedOption(p){if(!p||typeof p.url!=='string')return false;
  let url;try{url=new URL(p.url);}catch{return false;}
  if(url.protocol!=='https:'||url.search||url.hash||url.port||url.username||url.password)return false;
- if(p.provider==='embedmovies')return url.hostname==='myembed.biz'&&/^\/(filme\/\d+|serie\/\d+\/\d+\/\d+)$/.test(url.pathname);
- if(p.provider==='cineveok')return url.hostname==='cineveok.firebaseapp.com'&&/^\/embed\/(movie\/\d+|tv\/\d+\/\d+\/\d+)$/.test(url.pathname);
+ if(p.provider==='embedmovies')return url.hostname==='myembed.biz'&&/^\/(filme\/[1-9]\d*|serie\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
+ if(p.provider==='vidsrc')return url.hostname==='vidsrc.mov'&&/^\/embed\/(movie\/[1-9]\d*|tv\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
+ if(p.provider==='superflix')return url.hostname==='superflixapi.fun'&&/^\/(filme\/[1-9]\d*|serie\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
  return false;
 }
 // O player incorpora conteúdo de terceiros. Nunca inspecionar ou alterar o DOM externo.
-function embedSandboxAttr(p){return p?.provider==='cineveok'&&validEmbedOption(p)?'':' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"';}
+function embedSandboxAttr(p){return validEmbedOption(p)?' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"':'';}
 function playerModal(){
  const d=state.detail;if(!d)return '';
  const ep=state.playerEpisode, epName=ep?` · T${ep.season}E${ep.episode}`:'';
@@ -315,7 +316,7 @@ function playerModal(){
  source?.reason==='invalid-embed'?'Os dados do episódio ou do player externo estão inválidos.':
  'Não foi possível encontrar uma fonte de vídeo válida para este título.';
  return `<div class="veil player-veil"><div class="player-shell">
- <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2>${source?.available&&source.mode==='iframe'&&activeEmbed?`<div class="player-tools"><label class="player-select-label">Fonte de vídeo <select id="player-provider-select" aria-label="Escolher fonte de vídeo">${options.map((p,i)=>`<option value="${i}" ${chosenIndex===i?'selected':''}>${i===0?'Principal':'Alternativo'} · ${esc(p.label||p.provider)}</option>`).join('')}</select></label><button type="button" class="player-tool player-tool-icon" data-action="retryembed" title="Recarregar esta fonte" aria-label="Recarregar esta fonte">${icon('refresh')}</button></div>`:''}<span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
+ <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2>${source?.available&&source.mode==='iframe'&&activeEmbed?`<div class="player-tools"><label class="player-select-label">Fonte de vídeo <select id="player-provider-select" aria-label="Escolher fonte de vídeo">${options.map((p,i)=>`<option value="${i}" ${chosenIndex===i?'selected':''}>${i===0?'Principal':`Alternativa ${i}`} · ${esc(p.label||p.provider)}</option>`).join('')}</select></label><button type="button" class="player-tool player-tool-icon" data-action="retryembed" title="Recarregar esta fonte" aria-label="Recarregar esta fonte">${icon('refresh')}</button></div>`:''}<span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
  <div class="player-viewport branded-video">
  ${!source||source.loading?`<div class="player-message">${icon('refresh')}<h3>Buscando uma fonte de vídeo disponível…</h3><p>Aguarde enquanto verificamos a disponibilidade deste título.</p></div>`:
  source.available&&source.mode==='iframe'&&activeEmbed?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(activeEmbed.url)}" title="Player ${chosenIndex+1} de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"${embedSandboxAttr(activeEmbed)} referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="eager" fetchpriority="high"></iframe></div>`:

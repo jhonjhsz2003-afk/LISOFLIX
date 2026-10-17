@@ -1,15 +1,12 @@
-# LISOFLIX v1.7.0 — player alternativo Cineveok, perfis e histórico
+# LISOFLIX v1.7.1 — VidSrc e SuperFlix opcional
 
-- Mantém EmbedMovies como principal e integra Cineveok/PrimeVício como alternativa de iframe para conteúdos autorizados.
-- Remove o adaptador anterior e a autorização do domínio correspondente na CSP.
-- Melhora seletor de fonte no topo, perfil maior, gestão de perfis com formulário separado, histórico e marcar assistido.
-- Corrige navegação de primeira interação e avatares sem perda do formulário.
-- Barra de progresso apenas onde há duração real; não acessa DOM de iframes externos para detectar “Premium” e anúncios.
-- Recomendação local baseada no histórico, atualização periódica do catálogo e sincronização do D1.
-- Publicação com backup e sem migrações. Reprodução externa exige teste em produção e autorização de exibição.
+- Removido PrimeVício/Cineveok do backend, frontend, configuração e CSP.
+- EmbedMovies mantido como fonte principal.
+- Integrado VidSrc como alternativa de iframe por TMDB para filmes e episódios (opt-in habilitado no arquivo de configuração).
+- Preparado SuperFlixAPI `.fun` como opção experimental desativada até confirmação de endpoints e autorização.
+- Atualizados seletores de fonte para suportar mais de duas opções, preservando as restrições do D1.
+- Validação estrita de protocolo HTTPS, domínio exato e formato de URLs de iframe.
+- Atualizado cache-busting para `1.7.1`; sem migrações no D1.
+- Testes de roteamento de filme/episódio, proteção de fontes, seleção e segurança do iframe.
 
-## Histórico (resumido)
-
-1.6.x — design de streaming, perfil sem PIN, progressividade do catálogo, filtros, comentários, integração de iframe e scripts de deploy protegidos.
-1.5.x — identificação segura de Cloudflare D1 por UUID e diagnósticos de fontes.
-1.4.x — cadastro e autenticação persistente, configuração segura do catálogo e reprodução licenciada.
+Consulte `LEIA-ME-PRIMEIRO.md` para limites e publicação.

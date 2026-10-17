@@ -1,35 +1,38 @@
-# LISOFLIX 1.7.0 — instalação e notas de atualização
+# LISOFLIX 1.7.1 — opções de reprodução
 
-Projeto estático + Cloudflare Workers + D1, com catálogo de metadados TMDB e duas opções de reprodução via iframe **apenas para conteúdos cuja incorporação/exibição seja autorizada**.
+Esta versão foi preparada a partir do projeto LISOFLIX 1.7.0 enviado nesta conversa. Não executa migrações e preserva o banco Cloudflare D1 (usuários, perfis, comentários, histórico e listas).
 
-## Mudanças desta versão
+## Fontes de vídeo
 
-- Player principal: EmbedMovies (`https://myembed.biz/filme/{id}` e `https://myembed.biz/serie/{id}/{temporada}/{episodio}`).
-- Player alternativo: API do PrimeVício/Cineveok, conforme formato mostrado na documentação fornecida pelo operador (`https://cineveok.firebaseapp.com/embed/movie/{id}` e `https://cineveok.firebaseapp.com/embed/tv/{id}/{temporada}/{episodio}`). **A disponibilidade real do fornecedor precisa ser verificada no site publicado.**
-- API anterior de player secundário removida do código ativo, da CSP e da configuração Wrangler.
-- Escolha de fonte clara no topo do player. O visitante pode trocar a fonte se houver uma falha ou preferir a alternativa. Em caso de erro de iframe sinalizado pelo próprio navegador, a troca pode acontecer automaticamente, mas navegadores não expõem os erros internos dos iframes externos.
-- Perfis: separa a listagem dos formulários de adicionar/editar, permite alterar avatar sem apagar campos preenchidos; não solicita PIN de perfil. Senha principal de acesso à conta permanece.
-- Histórico: “Continuar assistindo” para títulos abertos, “Já assistidos” para os marcados; barra de progresso somente para mídias nativas com tempo realmente conhecido ou para títulos marcados como assistidos. Em iframes sem eventos de reprodução documentados, não se inventa minuto nem marca como visto ao carregar a página.
-- Recomendações pelo gênero e tipo dos conteúdos no histórico, sem passar informações pessoais aos provedores de vídeo.
-- Navegação visível imediatamente ao clicar nas abas, cabeçalho e avatares maiores. Atualização do catálogo no navegador a cada 2 minutos, e sincronização do histórico ativo a cada 30 segundos. São consultas periódicas, **não eventos em tempo real/push** de fornecedores externos.
+- **Principal — EmbedMovies:** permanece inalterado. A disponibilidade e a autorização de exibição são responsabilidade da origem.
+- **Alternativa 1 — VidSrc:** URLs de iframe confirmadas na documentação publicada em `https://vidsrc.mov/#api`:
+  - Filme: `https://vidsrc.mov/embed/movie/{TMDB_ID}`
+  - Série: `https://vidsrc.mov/embed/tv/{TMDB_ID}/{TEMPORADA}/{EPISODIO}`
+  - A documentação do próprio VidSrc afirma que **animes ainda não são suportados**. O botão poderá gerar URL, mas isso **não** confirma a existência de um vídeo para animes.
+- **Alternativa 2 — SuperFlix (experimental):** o site `https://superflixapi.fun/doc` retornou 403 nas verificações. Há documentação com rotas `/filme/{id}` e `/serie/{id}/{temporada}/{episodio}` em outro domínio da mesma marca, mas não é possível garantir que o domínio `.fun` use exatamente essas rotas. Por isso, a alternativa está implementada mas **DESATIVADA POR PADRÃO**.
 
-## O que NÃO é possível garantir
+### Configuração no `wrangler.jsonc` ou nas variáveis do Worker
 
-O selo “Premium / com anúncios” está **dentro do iframe de outro domínio**. O LISOFLIX não pode inspecionar esse selo via JavaScript (Same-Origin Policy), e a documentação disponibilizada do Cineveok e EmbedMovies não inclui um endpoint oficial que o indique. Por isso, a troca **não é automática por cor/selo**: o usuário escolhe a segunda fonte; o navegador pode tentar trocar apenas se comunicar erro real de carregamento. Não há promessa de que todos os filmes estejam disponíveis ou de que o fornecedor tenha direitos de exibição de todos os títulos.
+```json
+"ENABLE_EXTERNAL_EMBEDS": "true",
+"ENABLE_EMBEDMOVIES_AUTOMATIC": "true",
+"ENABLE_VIDSRC_FALLBACK": "true",
+"ENABLE_SUPERFLIX_FALLBACK": "false"
+```
 
-No player externo, os controles internos, anúncios, legendas e qualidade pertencem ao provedor. Iframes sem sandbox têm riscos extras de anúncios/pop-ups. Não incluí bloqueio invasivo de publicidade ou acesso ao DOM do provedor.
+Só mude `ENABLE_SUPERFLIX_FALLBACK` para `true` após confirmar os endpoints do seu domínio, o funcionamento do iframe e a autorização para exibir o conteúdo. A mudança publica um player experimental; não é garantia de disponibilidade.
 
-## Publicar com segurança
+### Observações importantes
 
-1. Faça cópia da pasta anterior do LISOFLIX. Descompacte este projeto em nova pasta. Confirme que `wrangler.jsonc` contém o UUID do D1 **da conta Cloudflare correta** antes de prosseguir.
-2. No PowerShell nessa pasta, execute `powershell.exe -NoProfile -ExecutionPolicy Bypass -File '.\10-PUBLICAR-CLOUDFLARE.ps1'`. O script verifica o UUID, confirma a conta, cria backup fora do GitHub, executa `npm test` e só então publica. **Não executa migração nem substitui o banco.**
-3. Atualize o repositório GitHub, se desejado, com `powershell.exe -NoProfile -ExecutionPolicy Bypass -File '.\09-ATUALIZAR-GITHUB.ps1'`. Tenha cuidado com deploy automático pelo GitHub, que pode sobrepor outra publicação do Worker.
-4. Confira `/api/config` (versão `1.7.0`, `secondaryPlayer: "cineveok"`) e `/api/system-check` (`database: true`, `schemaReady: true`, `catalogAuth: "authorized"`). Teste filme, série, anime, PIN removido, comentários e ambos os players no navegador.
+As opções no seletor superior são **manuais**. Um iframe carregar não significa que o vídeo esteja disponível, portanto o LISOFLIX não faz troca automática apenas pelo `load`. Anúncios, qualidade, legendas e conteúdo reproduzido ficam sob controle de cada fornecedor; não se tenta eliminar anúncios nem contornar CSP ou bloqueios de incorporação.
 
-Os Secrets `TMDB_API_KEY`/`TMDB_BEARER_TOKEN` devem permanecer no painel da Cloudflare; nunca no repositório ou nos arquivos `public/`. A variável `ENABLE_CINEVEOK_FALLBACK` no Wrangler ativa ou desativa o botão de fonte alternativa. Essa variável não confere direitos de exibição.
+O player não converte URLs de terceiros em links MP4/HLS. O TMDB é apenas catálogo e **não licencia conteúdo**. Utilize as fontes somente quando houver autorização de incorporação e exibição.
 
-O histórico e as contas existentes são preservados. Esta atualização **não altera `schema.sql` nem tabelas de produção**. Como em qualquer mudança online, faça o backup antes e teste gradualmente.
+## Como instalar
 
-## Testes locais
+1. Extraia o ZIP em pasta separada, mantendo o UUID correto do D1 em `wrangler.jsonc`.
+2. No PowerShell, dentro da pasta `LISOFLIX`, execute `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\10-PUBLICAR-CLOUDFLARE.ps1"`. O script verifica a conta, exporta backup do D1 e faz o deploy, **sem executar `schema.sql`**.
+3. Depois, se desejar publicar o projeto no GitHub, execute `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\09-ATUALIZAR-GITHUB.ps1"`.
+4. Confira `/api/config` (versão `1.7.1`; `fallbackPlayers: ["vidsrc"]`) e teste um filme e um episódio para cada fonte habilitada no navegador. Os testes de código não comprovam reprodução nos servidores externos.
 
-Rode `npm run check` e `npm test`. Testes locais usam banco SQLite temporário, não substituem testes no Workers publicado nem garantem funcionamento do provedor externo.
+**Não coloque tokens secretos nem senhas no GitHub.** A chave TMDB continua sendo secret da Cloudflare.
