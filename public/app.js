@@ -295,7 +295,15 @@ function validEmbedOption(p){if(!p||typeof p.url!=='string')return false;
  return false;
 }
 // O player incorpora conteúdo de terceiros. Nunca inspecionar ou alterar o DOM externo.
-function embedSandboxAttr(p){return validEmbedOption(p)?' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"':'';}
+// O VidSrc informa que não suporta sandbox no iframe. Somente este domínio
+// previamente validado é exceção; os demais preservam isolamento de origem.
+// Iframes sem sandbox podem abrir publicidade externa: mantenha monitoramento
+// e desative ENABLE_VIDSRC_FALLBACK se o fornecedor abusar dessa permissão.
+function embedSandboxAttr(p){
+ if(!validEmbedOption(p))return ' sandbox=""';
+ return p.provider==='vidsrc'?'':' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"';
+}
+function embedReferrerPolicy(p){return p?.provider==='vidsrc'?'no-referrer':'strict-origin-when-cross-origin';}
 function playerModal(){
  const d=state.detail;if(!d)return '';
  const ep=state.playerEpisode, epName=ep?` · T${ep.season}E${ep.episode}`:'';
@@ -316,10 +324,10 @@ function playerModal(){
  source?.reason==='invalid-embed'?'Os dados do episódio ou do player externo estão inválidos.':
  'Não foi possível encontrar uma fonte de vídeo válida para este título.';
  return `<div class="veil player-veil"><div class="player-shell">
- <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2>${source?.available&&source.mode==='iframe'&&activeEmbed?`<div class="player-tools"><label class="player-select-label">Fonte de vídeo <select id="player-provider-select" aria-label="Escolher fonte de vídeo">${options.map((p,i)=>`<option value="${i}" ${chosenIndex===i?'selected':''}>${i===0?'Principal':`Alternativa ${i}`} · ${esc(p.label||p.provider)}</option>`).join('')}</select></label><button type="button" class="player-tool player-tool-icon" data-action="retryembed" title="Recarregar esta fonte" aria-label="Recarregar esta fonte">${icon('refresh')}</button></div>`:''}<span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
+ <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2>${source?.available&&source.mode==='iframe'&&activeEmbed?`<div class="player-tools"><label class="player-select-label">Player <select id="player-provider-select" aria-label="Escolher entre os players disponíveis">${options.map((p,i)=>`<option value="${i}" ${chosenIndex===i?'selected':''}>${i===0?'1 · Principal':`${i+1} · Alternativa`} · ${esc(p.label||p.provider)}</option>`).join('')}</select></label>${options.length>1?`<button type="button" class="player-tool player-next-source" data-action="switchplayer" title="Se aparecer 404 ou o vídeo não abrir, tente outra fonte" aria-label="Tentar próximo player">${icon('refresh')} <span>Outra fonte</span></button>`:''}<button type="button" class="player-tool player-tool-icon" data-action="retryembed" title="Recarregar esta fonte" aria-label="Recarregar esta fonte">${icon('refresh')}</button></div>`:''}<span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
  <div class="player-viewport branded-video">
  ${!source||source.loading?`<div class="player-message">${icon('refresh')}<h3>Buscando uma fonte de vídeo disponível…</h3><p>Aguarde enquanto verificamos a disponibilidade deste título.</p></div>`:
- source.available&&source.mode==='iframe'&&activeEmbed?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(activeEmbed.url)}" title="Player ${chosenIndex+1} de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"${embedSandboxAttr(activeEmbed)} referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="eager" fetchpriority="high"></iframe></div>`:
+ source.available&&source.mode==='iframe'&&activeEmbed?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(activeEmbed.url)}" title="Player ${chosenIndex+1} de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"${embedSandboxAttr(activeEmbed)} referrerpolicy="${embedReferrerPolicy(activeEmbed)}" allowfullscreen loading="eager" fetchpriority="high"></iframe></div>`:
  source.available&&source.mode==='native'?`<div class="native-video-wrap"><video id="native-player" playsinline preload="metadata" poster="${esc(pics(d)||'')}"><source src="${esc(source.url)}" type="${esc(source.mime)}">Seu navegador não consegue reproduzir este formato.</video><div class="native-controls"><button class="native-control" data-action="pauseplay" aria-label="Reproduzir ou pausar">${icon('play')}</button><span id="video-clock">0:00 / 0:00</span><input id="video-seek" type="range" value="0" min="0" max="100" step=".1" aria-label="Progresso do vídeo"><button class="native-control" data-action="mutetoggle" aria-label="Silenciar">${icon('volume')}</button><input id="video-volume" type="range" min="0" max="1" value="1" step=".05" aria-label="Volume"><button class="native-control" data-action="fullscreen" aria-label="Tela cheia">⛶</button></div><p class="video-status" id="video-status" aria-live="polite"></p></div>`:
  `<div class="player-message"><img class="unavailable-emblem" src="/brand/lisoflix-emblem.webp" alt=""/><h3>Reprodução indisponível para este título</h3><p>${playbackReason} O catálogo fornece informações e capas, mas não arquivos de reprodução. Você ainda pode assistir ao trailer, quando disponível.</p><div class="player-buttons"><button class="btn btn-main" data-action="backdetail">Voltar aos detalhes</button>${dVideo(d)?`<button class="btn btn-glass" data-action="trailer">${icon('film')} Ver trailer</button>`:''}</div></div>`}
  </div></div></div>`;
@@ -389,7 +397,7 @@ async function action(a,el){switch(a){
  case 'newprofile':state.manageProfile=null;state.profileFormOpen=true;state.chosenAvatar='';renderOverlay();break;
  case 'avatar':state.chosenAvatar=el.dataset.avatar||'';document.querySelectorAll('.avatar-choice').forEach(b=>b.classList.toggle('selected',b.dataset.avatar===state.chosenAvatar));break;
  case 'deleteprofile':{const p=state.manageProfile;if(!p||!confirm(`Excluir o perfil "${p.name}" e sua lista?`))break;try{await post('/api/profiles/delete',{id:p.id});await refreshMe();state.overlay='profiles';renderOverlay();toast('Perfil excluído.');}catch(e){bannerError(e);}break;}
- case 'switchplayer':{const ps=state.playback?.players;if(Array.isArray(ps)&&ps.length>1){state.playerOptionIndex=((Number(state.playerOptionIndex)||0)+1)%ps.length;renderOverlay();toast('Fonte de vídeo alterada.');}break;}
+ case 'switchplayer':{const ps=state.playback?.players;if(Array.isArray(ps)&&ps.length>1){state.playerOptionIndex=((Number(state.playerOptionIndex)||0)+1)%ps.length;renderOverlay();toast('Outra fonte selecionada. Se continuar mostrando 404, tente o próximo player.');}break;}
  case 'retryembed':{const frame=$('.embed-video-frame');if(frame?.src){frame.src=frame.src;toast('Tentando carregar o player novamente.');}break;}
  case 'pauseplay':{const v=$('#native-player');if(v){if(v.paused)v.play().catch(()=>{});else v.pause();}break;}
  case 'mutetoggle':{const v=$('#native-player');if(v){v.muted=!v.muted;syncVideoControls(v);}break;}

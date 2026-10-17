@@ -19,9 +19,9 @@ test('Player principal usa sandbox, segunda fonte válida é selecionável no to
  assert.match(html,/id="player-provider-select"/);assert.match(html,/Principal/);assert.match(html,/Alternativo/);
  assert.doesNotMatch(html,/multiembed\.mov|superembed/i);
 });
-test('URL secundária segue formato de filmes e abre sem sandbox só nesse provedor',()=>{
+test('VidSrc tem exceção de sandbox por domínio validado e sem consultas adicionais',()=>{
  const html=render(1);assert.match(html,/src="https:\/\/vidsrc\.mov\/embed\/movie\/969681"/);
- assert.match(html,/<iframe[^>]+sandbox=/);assert.match(html,/id="player-provider-select"/);
+ assert.doesNotMatch(html,/src="https:\/\/vidsrc\.mov\/embed\/movie\/969681"[^>]*sandbox=/);assert.match(html,/id="player-provider-select"/);
 });
 test('Domínios suspeitos nunca são liberados como iframe',()=>{
  const html=render(1,true);assert.doesNotMatch(html,/unsafe\.invalid/);assert.match(html,/src="https:\/\/myembed\.biz/);

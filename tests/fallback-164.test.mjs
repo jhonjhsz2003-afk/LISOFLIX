@@ -71,7 +71,7 @@ test('interface com troca superior, sem barras e sandbox por fornecedor',()=>{
 });
 test('status informa que secundário está habilitado sem expor URLs de iframe',async()=>{
  const {DB}=mock();const v=(await get(DB,'/api/config',opts)).value;
- assert.equal(v.version,'1.7.2');assert.equal(v.secondaryPlayer,'vidsrc');
+ assert.equal(v.version,'1.7.3');assert.equal(v.secondaryPlayer,'vidsrc');
  assert.doesNotMatch(JSON.stringify(v),/vidsrc\.mov/);
  const none=(await get(DB,'/api/config',{...opts,ENABLE_VIDSRC_FALLBACK:'false'})).value;
  assert.equal(none.secondaryPlayer,null);

@@ -314,3 +314,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .player-toolbar h2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .player-tools{flex-wrap:nowrap}
 @media(max-width:650px){.player-toolbar{gap:5px}.player-toolbar h2{font-size:11px}.player-toolbar .player-brand{display:none}.player-tools{gap:5px}.player-select-label select{max-width:135px}}
+
+/* v1.7.3 — seletor com três fontes e recuperação manual de 404 do fornecedor. */
+.player-next-source{white-space:nowrap;border-color:#f9794f66;background:#f45c3322}
+.player-next-source:hover,.player-next-source:focus-visible{background:#eb603c55}
+@media(max-width:860px){.player-next-source span{display:none}.player-next-source{min-width:42px;justify-content:center;padding:0 10px}}
+@media(max-width:570px){.player-select-label select{max-width:125px}.player-tools{gap:4px}.player-toolbar .player-tool-icon{min-width:36px;min-height:39px}.player-toolbar h2{max-width:27vw}}
