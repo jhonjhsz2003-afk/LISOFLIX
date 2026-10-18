@@ -1,4 +1,11 @@
-# 1.7.6 — troca da fonte alternativa
+# 1.7.7 — compatibilidade iframe WarezCDN
+
+- Iframe WarezCDN sem sandbox, em linha com o embed oficial e limitado a host e rotas validados.
+- Permissoes de midia especificas documentadas; EmbedMovies permanece isolado.
+- WarezCDN ativado por padrao apos aprovacao do dominio pelo usuario.
+- Sem migracoes D1. Limitacao de desafios Cloudflare/404 do fornecedor preservada.
+
+# 1.7.7 — troca da fonte alternativa
 
 - Removida a antiga integração de terceiro que apresentava 404 após desafios Cloudflare.
 - Adicionado WarezCDN com URL de filme e episódio segundo a documentação e verificação de host/rota no frontend.

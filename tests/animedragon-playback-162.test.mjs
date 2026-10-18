@@ -35,12 +35,12 @@ test('parametros de episodio invalidos nunca geram iframe e filmes exigem cadast
  }
  assert.equal((await playback(api,{type:'movie',id:999})).result.url,'https://myembed.biz/filme/999');
 });
-test('ui do lisoflix aguarda primeiro episodio real e nao permite popups no iframe',()=>{
+test('ui aguarda episodio real, isola EmbedMovies e usa Warez sem sandbox no host validado',()=>{
  const code=read('public/app.js');
  assert.match(code,/if\(mediaType\(d\)==='tv'&&!episode\)/);
  assert.match(code,/episode=\{season:s,episode:\+first\.episode_number\}/);
  assert.match(code,/sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"/);
- assert.match(code,/p.provider==='warezcdn'\?' sandbox=/);
+ assert.match(code,/p.provider==='vidsrc'\|\|p.provider==='warezcdn'/);
  assert.doesNotMatch(code,/allow-top-navigation/);
  const manager=read('11-GERENCIAR-FONTES.ps1');
  assert.match(manager,/Autorizar TODOS os episodios desta serie/);

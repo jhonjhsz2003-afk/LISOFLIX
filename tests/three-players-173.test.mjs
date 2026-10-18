@@ -10,7 +10,7 @@ function mock(){const sqlite=new DatabaseSync(':memory:');sqlite.exec(read('sche
 async function api(DB,url){const r=await app.fetch(new Request('https://site.example'+url),{DB,...vars,ASSETS:{fetch:()=>new Response('ok')}},{});return {status:r.status,data:await r.json()};}
 test('as tres opcoes vem da API em ordem: EmbedMovies, WarezCDN e VidSrc',async()=>{
  const {DB}=mock();const c=(await api(DB,'/api/config')).data;
- assert.equal(c.version,'1.7.6'); assert.deepEqual(c.fallbackPlayers,['warezcdn','vidsrc']);
+ assert.equal(c.version,'1.7.7'); assert.deepEqual(c.fallbackPlayers,['warezcdn','vidsrc']);
  for(const [url,expected] of [
   ['/api/playback?type=movie&id=969681',['https://myembed.biz/filme/969681','https://warezcdn.sbs/filme/969681','https://vidsrc.mov/embed/movie/969681']],
   ['/api/playback?type=tv&id=1396&season=2&episode=3',['https://myembed.biz/serie/1396/2/3','https://warezcdn.sbs/serie/1396/2/3','https://vidsrc.mov/embed/tv/1396/2/3']]
@@ -25,7 +25,7 @@ test('seletor e próximo player aparecem apenas com mais de uma fonte, e iframe 
  const frame=(provider,url)=>runInNewContext(`${isolated}
 playerModal();`,{URL,state:{detail:{title:'Teste'},playerEpisode:null,playerOptionIndex:provider,playback:{available:true,mode:'iframe',players:[{provider:'embedmovies',label:'EmbedMovies',url:'https://myembed.biz/filme/969681'},{provider:'warezcdn',label:'WarezCDN',url:'https://warezcdn.sbs/filme/969681'},{provider:'vidsrc',label:'VidSrc',url:url||'https://vidsrc.mov/embed/movie/969681'}]}},esc:v=>String(v),icon:()=>'',title:x=>x.title,dVideo:()=>null,pics:()=>''});
  const primary=frame(0);assert.match(primary,/data-action="switchplayer"/);assert.match(primary,/id="player-provider-select"/);assert.match(primary,/VidSrc/);
- assert.match(frame(1),/src="https:\/\/warezcdn.sbs\/filme\/969681"[^>]*sandbox=/);
+ assert.doesNotMatch(frame(1),/src="https:\/\/warezcdn.sbs\/filme\/969681"[^>]*sandbox=/);
  assert.match(frame(2),/src="https:\/\/vidsrc.mov\/embed\/movie\/969681"[^>]*referrerpolicy="strict-origin-when-cross-origin"/);
  assert.doesNotMatch(frame(2),/src="https:\/\/vidsrc.mov\/embed\/movie\/969681"[^>]*sandbox=/);
  assert.doesNotMatch(frame(2,'https://vidsrc.mov.evil.site/embed/movie/969681'),/vidsrc.mov.evil.site/);

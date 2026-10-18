@@ -22,7 +22,8 @@ test('WarezCDN usa apenas rota de serie documentada, sem trocar por /anime',()=>
  const html=render(1);
  assert.match(html,/src="https:\/\/warezcdn\.sbs\/serie\/1434\/1\/1"/);
  assert.doesNotMatch(html,/warezcdn\.sbs\/anime/);
- assert.match(html,/src="https:\/\/warezcdn\.sbs[^" ]*"[^>]*sandbox="[^"]*allow-popups"/);
+ assert.doesNotMatch(html,/src="https:\/\/warezcdn\.sbs[^" ]*"[^>]*sandbox=/);
+ assert.match(html,/clipboard-write/); // Permissoes documentadas pelo fornecedor
  assert.doesNotMatch(html,/allow-top-navigation/);
 });
 test('EmbedMovies permanece isolado; VidSrc mantém excecao por host',()=>{

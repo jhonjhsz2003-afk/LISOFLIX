@@ -295,13 +295,21 @@ function validEmbedOption(p){if(!p||typeof p.url!=='string')return false;
  return false;
 }
 // O player incorpora conteúdo de terceiros. Nunca inspecionar ou alterar o DOM externo.
-// O VidSrc informa que não suporta sandbox no iframe. Somente este domínio
-// previamente validado é exceção; os demais preservam isolamento de origem.
-// Iframes sem sandbox podem abrir publicidade externa: mantenha monitoramento
-// e desative ENABLE_VIDSRC_FALLBACK se o fornecedor abusar dessa permissão.
+// Os exemplos oficiais de VidSrc e WarezCDN usam iframe sem sandbox.
+// A excecao se aplica APENAS a URLs HTTPS com host e rota validados acima.
+// Aviso: conteudo externo sem sandbox pode abrir publicidade e redirecionamentos
+// a partir da interacao do usuario. Desative a fonte se houver comportamento abusivo.
+// O site nao tenta contornar desafios de seguranca do fornecedor.
 function embedSandboxAttr(p){
  if(!validEmbedOption(p))return ' sandbox=""';
- return p.provider==='vidsrc'?'':p.provider==='warezcdn'?' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups"':' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"';
+ return (p.provider==='vidsrc'||p.provider==='warezcdn')?'':' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"';
+}
+function embedPermissions(p){
+ // O WarezCDN documenta estas permissoes para seu player incorporado.
+ // Elas nao liberam novos dominios em frame-src.
+ return p?.provider==='warezcdn'
+  ?'autoplay *; encrypted-media *; picture-in-picture *; fullscreen *; clipboard-write *; accelerometer *; gyroscope *; web-share *'
+  :'autoplay; encrypted-media; fullscreen; picture-in-picture';
 }
 function embedReferrerPolicy(p){return 'strict-origin-when-cross-origin';}
 function playerModal(){
@@ -331,7 +339,7 @@ function playerModal(){
  ${state.playerHelpOpen&&source?.available&&source.mode==='iframe'?`<aside class="player-help-panel" role="status"><button type="button" class="player-help-close" data-action="playerhelp" aria-label="Fechar ajuda">×</button><strong>O vídeo não abriu?</strong><p>Alguns fornecedores mostram verificação de segurança ou erro 404. Isso depende do serviço externo: o LISOFLIX não consegue confirmar a reprodução dentro do iframe.</p><button type="button" class="player-help-next" data-action="switchplayer">${icon('refresh')} Tentar outra fonte</button><small>Ordem: EmbedMovies → WarezCDN → VidSrc. O WarezCDN exige domínio verificado e aprovado. Sua conta e seu histórico não são alterados.</small></aside>`:''}
  <div class="player-viewport branded-video">
  ${!source||source.loading?`<div class="player-message">${icon('refresh')}<h3>Buscando uma fonte de vídeo disponível…</h3><p>Aguarde enquanto verificamos a disponibilidade deste título.</p></div>`:
- source.available&&source.mode==='iframe'&&activeEmbed?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(iframePlayer.url)}" title="Player ${chosenIndex+1} de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"${embedSandboxAttr(activeEmbed)} referrerpolicy="${embedReferrerPolicy(activeEmbed)}" allowfullscreen loading="eager" fetchpriority="high"></iframe></div>`:
+ source.available&&source.mode==='iframe'&&activeEmbed?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(iframePlayer.url)}" title="Player ${chosenIndex+1} de ${esc(title(d))}" allow="${esc(embedPermissions(activeEmbed))}"${embedSandboxAttr(activeEmbed)} referrerpolicy="${embedReferrerPolicy(activeEmbed)}" allowfullscreen loading="eager" fetchpriority="high"></iframe></div>`:
  source.available&&source.mode==='native'?`<div class="native-video-wrap"><video id="native-player" playsinline preload="metadata" poster="${esc(pics(d)||'')}"><source src="${esc(source.url)}" type="${esc(source.mime)}">Seu navegador não consegue reproduzir este formato.</video><div class="native-controls"><button class="native-control" data-action="pauseplay" aria-label="Reproduzir ou pausar">${icon('play')}</button><span id="video-clock">0:00 / 0:00</span><input id="video-seek" type="range" value="0" min="0" max="100" step=".1" aria-label="Progresso do vídeo"><button class="native-control" data-action="mutetoggle" aria-label="Silenciar">${icon('volume')}</button><input id="video-volume" type="range" min="0" max="1" value="1" step=".05" aria-label="Volume"><button class="native-control" data-action="fullscreen" aria-label="Tela cheia">⛶</button></div><p class="video-status" id="video-status" aria-live="polite"></p></div>`:
  `<div class="player-message"><img class="unavailable-emblem" src="/brand/lisoflix-emblem.webp" alt=""/><h3>Reprodução indisponível para este título</h3><p>${playbackReason} O catálogo fornece informações e capas, mas não arquivos de reprodução. Você ainda pode assistir ao trailer, quando disponível.</p><div class="player-buttons"><button class="btn btn-main" data-action="backdetail">Voltar aos detalhes</button>${dVideo(d)?`<button class="btn btn-glass" data-action="trailer">${icon('film')} Ver trailer</button>`:''}</div></div>`}
  </div></div></div>`;
