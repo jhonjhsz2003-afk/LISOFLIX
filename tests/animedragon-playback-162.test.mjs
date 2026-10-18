@@ -40,7 +40,7 @@ test('ui do lisoflix aguarda primeiro episodio real e nao permite popups no ifra
  assert.match(code,/if\(mediaType\(d\)==='tv'&&!episode\)/);
  assert.match(code,/episode=\{season:s,episode:\+first\.episode_number\}/);
  assert.match(code,/sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"/);
- assert.match(code,/p.provider==='superflix'\?' sandbox=/);
+ assert.match(code,/p.provider==='warezcdn'\?' sandbox=/);
  assert.doesNotMatch(code,/allow-top-navigation/);
  const manager=read('11-GERENCIAR-FONTES.ps1');
  assert.match(manager,/Autorizar TODOS os episodios desta serie/);

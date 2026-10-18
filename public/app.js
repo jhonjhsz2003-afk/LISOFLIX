@@ -291,7 +291,7 @@ function validEmbedOption(p){if(!p||typeof p.url!=='string')return false;
  if(url.protocol!=='https:'||url.search||url.hash||url.port||url.username||url.password)return false;
  if(p.provider==='embedmovies')return url.hostname==='myembed.biz'&&/^\/(filme\/[1-9]\d*|serie\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
  if(p.provider==='vidsrc')return url.hostname==='vidsrc.mov'&&/^\/embed\/(movie\/[1-9]\d*|tv\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
- if(p.provider==='superflix')return url.hostname==='superflixapi.fun'&&/^\/(filme\/[1-9]\d*|(?:serie|anime)\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
+ if(p.provider==='warezcdn')return url.hostname==='warezcdn.sbs'&&/^\/(filme\/[1-9]\d*|serie\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
  return false;
 }
 // O player incorpora conteúdo de terceiros. Nunca inspecionar ou alterar o DOM externo.
@@ -301,7 +301,7 @@ function validEmbedOption(p){if(!p||typeof p.url!=='string')return false;
 // e desative ENABLE_VIDSRC_FALLBACK se o fornecedor abusar dessa permissão.
 function embedSandboxAttr(p){
  if(!validEmbedOption(p))return ' sandbox=""';
- return p.provider==='vidsrc'?'':p.provider==='superflix'?' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups"':' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"';
+ return p.provider==='vidsrc'?'':p.provider==='warezcdn'?' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups"':' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"';
 }
 function embedReferrerPolicy(p){return 'strict-origin-when-cross-origin';}
 function playerModal(){
@@ -314,17 +314,9 @@ function playerModal(){
   :[];
  const chosenIndex=Math.max(0,Math.min(options.length-1,Number(state.playerOptionIndex)||0));
  const activeEmbed=options[chosenIndex];
- // A pagina oficial do SuperFlix apresenta /anime/{id}/{s}/{e} para animacoes.
- // Uma rota alternativa e oferecida somente quando o TMDB classifica como animacao.
- // A confirmacao Cloudflare e as respostas 404 do fornecedor nao sao contornadas.
- const animation=!!((d.genre_ids||[]).includes(16)||(d.genres||[]).some(g=>Number(g.id)===16));
- // /anime/ e reservado a animacoes japonesas. Desenhos ocidentais devem
- // permanecer na rota /serie/; classificacao por genero 16 isolado era incorreta.
- const japaneseAnime=animation&&(d.original_language==='ja'||(!d.original_language&&(d.origin_country||[]).includes('JP')));
- const alternateSuperflix=activeEmbed?.provider==='superflix'&&!!ep&&japaneseAnime;
- const useAnimeRoute=alternateSuperflix&&state.superflixRoute!=='serie';
- const animeUrl=useAnimeRoute?`https://superflixapi.fun/anime/${Number(d.id)}/${Number(ep.season)}/${Number(ep.episode)}`:null;
- const iframePlayer=useAnimeRoute&&validEmbedOption({provider:'superflix',url:animeUrl})?{...activeEmbed,url:animeUrl}:activeEmbed;
+ // O endereco do provedor e construido exclusivamente no Worker, nunca no catalogo.
+ // Iframes externos nao expõem a disponibilidade real do video.
+ const iframePlayer=activeEmbed;
 
  const playbackReason=source?.error?`Falha ao consultar o player: ${esc(source.error)}.`:
  source?.reason==='no-source-configured'?'Ainda não há uma fonte autorizada para este título.':
@@ -335,8 +327,8 @@ function playerModal(){
  source?.reason==='invalid-embed'?'Os dados do episódio ou do player externo estão inválidos.':
  'Não foi possível encontrar uma fonte de vídeo válida para este título.';
  return `<div class="veil player-veil"><div class="player-shell">
- <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2>${source?.available&&source.mode==='iframe'&&activeEmbed?`<div class="player-tools"><label class="player-select-label">Player <select id="player-provider-select" aria-label="Escolher entre os players disponíveis">${options.map((p,i)=>`<option value="${i}" ${chosenIndex===i?'selected':''}>${i===0?'1 · Principal':`${i+1} · Alternativa`} · ${esc(p.label||p.provider)}</option>`).join('')}</select></label>${options.length>1?`<button type="button" class="player-tool player-next-source" data-action="switchplayer" title="Se aparecer 404 ou o vídeo não abrir, tente outra fonte" aria-label="Tentar próximo player">${icon('refresh')} <span>Outra fonte</span></button>`:''}${alternateSuperflix?`<button type="button" class="player-tool player-route-toggle" data-action="superflixroute" title="Tentar a outra rota oficial do provedor" aria-label="Alternar rota do SuperFlix">${useAnimeRoute?'Tentar série':'Tentar anime'}</button>`:''}<button type="button" class="player-tool player-tool-icon" data-action="retryembed" title="Recarregar esta fonte" aria-label="Recarregar esta fonte">${icon('refresh')}</button><button type="button" class="player-tool player-help-trigger" data-action="playerhelp" aria-expanded="${!!state.playerHelpOpen}" title="Se o player não abrir" aria-label="Ajuda para reprodução">Ajuda</button></div>`:''}<span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
- ${state.playerHelpOpen&&source?.available&&source.mode==='iframe'?`<aside class="player-help-panel" role="status"><button type="button" class="player-help-close" data-action="playerhelp" aria-label="Fechar ajuda">×</button><strong>O vídeo não abriu?</strong><p>Alguns fornecedores mostram verificação de segurança ou erro 404. Isso depende do serviço externo: o LISOFLIX não consegue confirmar a reprodução dentro do iframe.</p><button type="button" class="player-help-next" data-action="switchplayer">${icon('refresh')} Tentar outra fonte</button><small>Ordem: EmbedMovies → SuperFlixAPI → VidSrc. Sua conta e seu histórico não são alterados.</small></aside>`:''}
+ <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2>${source?.available&&source.mode==='iframe'&&activeEmbed?`<div class="player-tools"><label class="player-select-label">Player <select id="player-provider-select" aria-label="Escolher entre os players disponíveis">${options.map((p,i)=>`<option value="${i}" ${chosenIndex===i?'selected':''}>${i===0?'1 · Principal':`${i+1} · Alternativa`} · ${esc(p.label||p.provider)}</option>`).join('')}</select></label>${options.length>1?`<button type="button" class="player-tool player-next-source" data-action="switchplayer" title="Se aparecer 404 ou o vídeo não abrir, tente outra fonte" aria-label="Tentar próximo player">${icon('refresh')} <span>Outra fonte</span></button>`:''}<button type="button" class="player-tool player-tool-icon" data-action="retryembed" title="Recarregar esta fonte" aria-label="Recarregar esta fonte">${icon('refresh')}</button><button type="button" class="player-tool player-help-trigger" data-action="playerhelp" aria-expanded="${!!state.playerHelpOpen}" title="Se o player não abrir" aria-label="Ajuda para reprodução">Ajuda</button></div>`:''}<span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
+ ${state.playerHelpOpen&&source?.available&&source.mode==='iframe'?`<aside class="player-help-panel" role="status"><button type="button" class="player-help-close" data-action="playerhelp" aria-label="Fechar ajuda">×</button><strong>O vídeo não abriu?</strong><p>Alguns fornecedores mostram verificação de segurança ou erro 404. Isso depende do serviço externo: o LISOFLIX não consegue confirmar a reprodução dentro do iframe.</p><button type="button" class="player-help-next" data-action="switchplayer">${icon('refresh')} Tentar outra fonte</button><small>Ordem: EmbedMovies → WarezCDN → VidSrc. O WarezCDN exige domínio verificado e aprovado. Sua conta e seu histórico não são alterados.</small></aside>`:''}
  <div class="player-viewport branded-video">
  ${!source||source.loading?`<div class="player-message">${icon('refresh')}<h3>Buscando uma fonte de vídeo disponível…</h3><p>Aguarde enquanto verificamos a disponibilidade deste título.</p></div>`:
  source.available&&source.mode==='iframe'&&activeEmbed?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(iframePlayer.url)}" title="Player ${chosenIndex+1} de ${esc(title(d))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"${embedSandboxAttr(activeEmbed)} referrerpolicy="${embedReferrerPolicy(activeEmbed)}" allowfullscreen loading="eager" fetchpriority="high"></iframe></div>`:
@@ -370,7 +362,7 @@ async function startPlay(episode=null,{push=true}={}){
  }
  state.playerEpisode=episode;
  if(push)history.pushState({lf:true,overlay:'play'},'',`#/${state.page}/assistir/${mediaType(d)}/${d.id}/${episode?.season||0}/${episode?.episode||0}`);
- state.overlay='play';state.playback={loading:true};state.playerOptionIndex=0;state.superflixRoute='';state.playerHelpOpen=false;lastProgressSave=0;renderOverlay();
+ state.overlay='play';state.playback={loading:true};state.playerOptionIndex=0;state.playerHelpOpen=false;lastProgressSave=0;renderOverlay();
  try {const playback=await api(`/api/playback?type=${mediaType(d)}&id=${d.id}&season=${episode?.season||0}&episode=${episode?.episode||0}`);if(state.detail?.id!==d.id||state.overlay!=='play')return;state.playback=playback;renderOverlay();if(playback.available){void post('/api/watch',{type:mediaType(d),id:d.id,season:episode?.season||0,episode:episode?.episode||0,snapshot:briefSnapshot(d)}).then(()=>refreshLibrary()).catch(()=>{});}if(playback.available&&playback.mode!=='iframe'){attachNativePlayer(playback.position||0);}}
  catch(e){state.playback={available:false,error:e.message};if(state.overlay==='play')renderOverlay();}
 }
@@ -409,9 +401,8 @@ async function action(a,el){switch(a){
  case 'newprofile':state.manageProfile=null;state.profileFormOpen=true;state.chosenAvatar='';renderOverlay();break;
  case 'avatar':state.chosenAvatar=el.dataset.avatar||'';document.querySelectorAll('.avatar-choice').forEach(b=>b.classList.toggle('selected',b.dataset.avatar===state.chosenAvatar));break;
  case 'deleteprofile':{const p=state.manageProfile;if(!p||!confirm(`Excluir o perfil "${p.name}" e sua lista?`))break;try{await post('/api/profiles/delete',{id:p.id});await refreshMe();state.overlay='profiles';renderOverlay();toast('Perfil excluído.');}catch(e){bannerError(e);}break;}
- case 'switchplayer':{const ps=state.playback?.players;if(Array.isArray(ps)&&ps.length>1){state.playerOptionIndex=((Number(state.playerOptionIndex)||0)+1)%ps.length;state.superflixRoute='';state.playerHelpOpen=false;renderOverlay();toast('Outra fonte selecionada. A disponibilidade depende do fornecedor.');}break;}
+ case 'switchplayer':{const ps=state.playback?.players;if(Array.isArray(ps)&&ps.length>1){state.playerOptionIndex=((Number(state.playerOptionIndex)||0)+1)%ps.length;state.playerHelpOpen=false;renderOverlay();toast('Outra fonte selecionada. A disponibilidade depende do fornecedor.');}break;}
  case 'playerhelp':state.playerHelpOpen=!state.playerHelpOpen;renderOverlay();break;
- case 'superflixroute':{state.superflixRoute=state.superflixRoute==='serie'?'anime':'serie';renderOverlay();toast('Tentando a outra rota do fornecedor.');break;}
  case 'retryembed':{const frame=$('.embed-video-frame');if(frame?.src){frame.src=frame.src;toast('Tentando carregar o player novamente.');}break;}
  case 'pauseplay':{const v=$('#native-player');if(v){if(v.paused)v.play().catch(()=>{});else v.pause();}break;}
  case 'mutetoggle':{const v=$('#native-player');if(v){v.muted=!v.muted;syncVideoControls(v);}break;}
@@ -425,14 +416,14 @@ document.addEventListener('error',e=>{if(e.target.matches?.('.embed-video-frame'
  // O evento 'error' real do iframe permite tentar a proxima fonte.
  // Uma pagina interna com 404 ou desafio Cloudflare NAO dispara esse evento de forma confiavel.
  const current=Math.max(0,Number(state.playerOptionIndex)||0);
- if(current+1<options.length&&validEmbedOption(options[current+1])){state.playerOptionIndex=current+1;state.superflixRoute='';state.playerHelpOpen=false;renderOverlay();toast('Falha de carregamento detectada. Abrindo a fonte seguinte.','error');}
+ if(current+1<options.length&&validEmbedOption(options[current+1])){state.playerOptionIndex=current+1;state.playerHelpOpen=false;renderOverlay();toast('Falha de carregamento detectada. Abrindo a fonte seguinte.','error');}
  else{state.playerHelpOpen=true;renderOverlay();toast('Fonte indisponível. Verifique as opções de reprodução.','error');}
  return;
  }if(e.target.matches?.('.tile-img')){if(!e.target.dataset.triedPoster&&e.target.dataset.poster&&e.target.src!==e.target.dataset.poster){e.target.dataset.triedPoster='1';e.target.src=e.target.dataset.poster;return;}e.target.style.display='none';const fallback=e.target.nextElementSibling;if(fallback)fallback.hidden=false;}if(e.target.matches?.('.modal-hero > img'))e.target.style.display='none';},true);
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action],[data-page]');if(el){e.preventDefault();if(el.dataset.page){await navigate(el.dataset.page);return;}await action(el.dataset.action,el);return;}if(e.target.matches('[data-backdrop]'))close();else if(state.profileMenu&&!e.target.closest('.dropdown,.profile-trigger')){state.profileMenu=false;render();}});
 document.addEventListener('submit',async e=>{const form=e.target;if(form.id==='auth-form'){e.preventDefault();await submitAuth(form);}if(form.id==='profile-form'){e.preventDefault();await submitProfile(form);}if(form.id==='comment-form'){e.preventDefault();if(!requireProfile())return;const input=form.querySelector('input'),value=input.value.trim();if(!value)return;try{await post('/api/comments',{type:mediaType(state.detail),id:state.detail.id,content:value});input.value='';await loadComments();toast('Comentário publicado.');}catch(err){bannerError(err);}}if(form.id==='search-form'){e.preventDefault();state.search=new FormData(form).get('search')||'';state.searchOpen=false;state.searchSuggestions=[];await navigate('busca');}});
 document.addEventListener('input',e=>{if(e.target.closest('#search-form')&&e.target.name==='search'){state.search=e.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(()=>runSearch({preview:true}),280);return;}const v=$('#native-player');if(!v)return;if(e.target.id==='video-seek'&&Number.isFinite(v.duration))v.currentTime=v.duration*(Number(e.target.value)/100);if(e.target.id==='video-volume'){v.volume=Number(e.target.value);v.muted=false;}});
-document.addEventListener('change',async e=>{if(e.target.id==='player-provider-select'){const i=Number(e.target.value);if(Number.isSafeInteger(i)&&i>=0&&i<(state.playback?.players?.length||0)){state.playerOptionIndex=i;state.superflixRoute='';state.playerHelpOpen=false;renderOverlay();}return;}if(e.target.id==='season-selector'){state.showAllEpisodes=false;await loadSeason(+e.target.value);}if(e.target.id==='genre-select'){state.genre=e.target.value;await loadGenre();}if(e.target.id==='langsel'||e.target.id==='mediasel'){state.language=$('#langsel').value;state.languageType=$('#mediasel').value;await loadDiscover();}});
+document.addEventListener('change',async e=>{if(e.target.id==='player-provider-select'){const i=Number(e.target.value);if(Number.isSafeInteger(i)&&i>=0&&i<(state.playback?.players?.length||0)){state.playerOptionIndex=i;state.playerHelpOpen=false;renderOverlay();}return;}if(e.target.id==='season-selector'){state.showAllEpisodes=false;await loadSeason(+e.target.value);}if(e.target.id==='genre-select'){state.genre=e.target.value;await loadGenre();}if(e.target.id==='langsel'||e.target.id==='mediasel'){state.language=$('#langsel').value;state.languageType=$('#mediasel').value;await loadDiscover();}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.overlay)close();if(e.key==='/'&&!state.overlay&&!state.searchOpen){e.preventDefault();state.searchOpen=true;render();$('.header-search input')?.focus();}});
 window.addEventListener('scroll',updateHeader,{passive:true});
 let routeSync=0;

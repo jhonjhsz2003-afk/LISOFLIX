@@ -5,7 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import app from '../src/worker.js';
 const read=f=>readFileSync(new URL('../'+f,import.meta.url),'utf8');
 function mock(){const s=new DatabaseSync(':memory:');s.exec(read('schema.sql'));return {sqlite:s,DB:{prepare(sql){let args=[];const o={bind(...x){args=x;return o},first(){return s.prepare(sql).get(...args)||null},all(){return {results:s.prepare(sql).all(...args)}},run(){return s.prepare(sql).run(...args)}};return o}}};}
-const opts={ENABLE_EXTERNAL_EMBEDS:'true',ENABLE_EMBEDMOVIES_AUTOMATIC:'true',ENABLE_VIDSRC_FALLBACK:'true',ENABLE_SUPERFLIX_FALLBACK:'false'};
+const opts={ENABLE_EXTERNAL_EMBEDS:'true',ENABLE_EMBEDMOVIES_AUTOMATIC:'true',ENABLE_VIDSRC_FALLBACK:'true',ENABLE_WAREZCDN_FALLBACK:'false'};
 async function get(DB,endpoint,flags={}){const res=await app.fetch(new Request('https://lisoflix.test'+endpoint),{DB,ASSETS:{fetch:()=>new Response('ok')},...flags},{});return {status:res.status,value:await res.json()};}
 test('fallback opt-in: player primario continua EmbedMovies e sem a flag so existe uma opcao',async()=>{
  const {DB}=mock();const path='/api/playback?type=movie&id=399566';
@@ -66,37 +66,37 @@ test('interface com troca superior, sem barras e sandbox por fornecedor',()=>{
  assert.match(ui,/function validEmbedOption\(p\)/);
  assert.match(ui,/allow-popups/);assert.doesNotMatch(ui,/allow-top-navigation/);
  assert.match(css,/v1\.6\.4: player sem faixas inferiores/);
- assert.match(hdr,/frame-src.*https:\/\/vidsrc\.mov.*https:\/\/superflixapi\.fun/);
+ assert.match(hdr,/frame-src.*https:\/\/vidsrc\.mov.*https:\/\/warezcdn\.sbs/);
  assert.doesNotMatch(hdr,/frame-src \*/);
 });
 test('status informa que secundário está habilitado sem expor URLs de iframe',async()=>{
  const {DB}=mock();const v=(await get(DB,'/api/config',opts)).value;
- assert.equal(v.version,'1.7.5');assert.equal(v.secondaryPlayer,'vidsrc');
+ assert.equal(v.version,'1.7.6');assert.equal(v.secondaryPlayer,'vidsrc');
  assert.doesNotMatch(JSON.stringify(v),/vidsrc\.mov/);
  const none=(await get(DB,'/api/config',{...opts,ENABLE_VIDSRC_FALLBACK:'false'})).value;
  assert.equal(none.secondaryPlayer,null);
 });
 
-test('SuperFlix habilitado por flag aparece antes do VidSrc e sem inventar disponibilidade',async()=>{
+test('WarezCDN habilitado por flag aparece antes do VidSrc e sem inventar disponibilidade',async()=>{
  const {DB}=mock();const url='/api/playback?type=movie&id=969681';
  const off=(await get(DB,url,opts)).value;
  assert.deepEqual(off.players.map(p=>p.provider),['embedmovies','vidsrc']);
- const on=(await get(DB,url,{...opts,ENABLE_SUPERFLIX_FALLBACK:'true'})).value;
- assert.deepEqual(on.players.map(p=>p.provider),['embedmovies','superflix','vidsrc']);
- assert.equal(on.players[1].url,'https://superflixapi.fun/filme/969681');
+ const on=(await get(DB,url,{...opts,ENABLE_WAREZCDN_FALLBACK:'true'})).value;
+ assert.deepEqual(on.players.map(p=>p.provider),['embedmovies','warezcdn','vidsrc']);
+ assert.equal(on.players[1].url,'https://warezcdn.sbs/filme/969681');
  assert.equal(on.players[1].availabilityVerified,false);
- const tv=(await get(DB,'/api/playback?type=tv&id=157336&season=1&episode=9',{...opts,ENABLE_SUPERFLIX_FALLBACK:'true'})).value;
- assert.equal(tv.players[1].url,'https://superflixapi.fun/serie/157336/1/9');
+ const tv=(await get(DB,'/api/playback?type=tv&id=157336&season=1&episode=9',{...opts,ENABLE_WAREZCDN_FALLBACK:'true'})).value;
+ assert.equal(tv.players[1].url,'https://warezcdn.sbs/serie/157336/1/9');
 });
-test('SuperFlix nao pode ignorar fonte desativada no D1',async()=>{
+test('WarezCDN nao pode ignorar fonte desativada no D1',async()=>{
  const {DB,sqlite}=mock();
  sqlite.prepare("INSERT INTO playback_embeds(media_type,media_id,season,episode,provider,enabled) VALUES('movie',12345,0,0,'embedmovies',0)").run();
- const r=(await get(DB,'/api/playback?type=movie&id=12345',{...opts,ENABLE_SUPERFLIX_FALLBACK:'true'})).value;
+ const r=(await get(DB,'/api/playback?type=movie&id=12345',{...opts,ENABLE_WAREZCDN_FALLBACK:'true'})).value;
  assert.deepEqual(r,{available:false,reason:'source-disabled'});
 });
 test('status permite controlar as fontes individualmente sem expor dominios',async()=>{
  const {DB}=mock();
- const cfg=(await get(DB,'/api/config',{...opts,ENABLE_SUPERFLIX_FALLBACK:'true',ENABLE_VIDSRC_FALLBACK:'false'})).value;
- assert.deepEqual(cfg.fallbackPlayers,['superflix']);assert.equal(cfg.secondaryPlayer,'superflix');
+ const cfg=(await get(DB,'/api/config',{...opts,ENABLE_WAREZCDN_FALLBACK:'true',ENABLE_VIDSRC_FALLBACK:'false'})).value;
+ assert.deepEqual(cfg.fallbackPlayers,['warezcdn']);assert.equal(cfg.secondaryPlayer,'warezcdn');
  assert.doesNotMatch(JSON.stringify(cfg),/\.fun\/|\.mov\//);
 });

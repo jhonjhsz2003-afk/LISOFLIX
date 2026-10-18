@@ -1,7 +1,7 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.7.5';
+const APP_VERSION = '1.7.6';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
@@ -47,14 +47,14 @@ function automaticEmbedsEnabled(env) {return iframeFeatureEnabled(env)&&String(e
 function vidsrcEnabled(env) {
  return iframeFeatureEnabled(env)&&String(env.ENABLE_VIDSRC_FALLBACK||'').toLowerCase()==='true';
 }
-function superflixEnabled(env) {
- // Os formatos /filme/{id} e /serie/{id}/{temporada}/{episodio} foram
- // documentados nas capturas fornecidas pelo administrador do site.
- // A disponibilidade e os direitos de exibicao nao sao verificados pela URL.
- return iframeFeatureEnabled(env)&&String(env.ENABLE_SUPERFLIX_FALLBACK||'').toLowerCase()==='true';
+function warezcdnEnabled(env) {
+ // Habilite apenas depois de verificar o dominio no painel WarezCDN, obter
+ // aprovacao e confirmar os direitos de incorporacao dos titulos.
+ // A existencia de uma rota documentada NAO comprova video disponivel.
+ return iframeFeatureEnabled(env)&&String(env.ENABLE_WAREZCDN_FALLBACK||'').toLowerCase()==='true';
 }
 function fallbackProviders(env) {
- return [superflixEnabled(env)&&'superflix',vidsrcEnabled(env)&&'vidsrc'].filter(Boolean);
+ return [warezcdnEnabled(env)&&'warezcdn',vidsrcEnabled(env)&&'vidsrc'].filter(Boolean);
 }
 function providerUrl(provider,type,id,season,episode) {
  if(!safeMedia(type,id))return null;
@@ -62,8 +62,8 @@ function providerUrl(provider,type,id,season,episode) {
  if(type==='tv'&&(!Number.isInteger(season)||season<1||season>100||!Number.isInteger(episode)||episode<1||episode>2000))return null;
  if(provider==='vidsrc')return type==='movie'
   ?`https://vidsrc.mov/embed/movie/${id}`:`https://vidsrc.mov/embed/tv/${id}/${season}/${episode}`;
- if(provider==='superflix')return type==='movie'
-  ?`https://superflixapi.fun/filme/${id}`:`https://superflixapi.fun/serie/${id}/${season}/${episode}`;
+ if(provider==='warezcdn')return type==='movie'
+  ?`https://warezcdn.sbs/filme/${id}`:`https://warezcdn.sbs/serie/${id}/${season}/${episode}`;
  return null;
 }
 function licensedEmbedUrl(type,id,season,episode,mode='standard') {
@@ -317,7 +317,7 @@ async function handle(req,env) {
    // Troca manual: iframes de outras origens não expõem se há fontes ou anúncios.
    for(const name of fallbackProviders(env)) {
      const link=providerUrl(name,type,+id,season,episode);
-     if(link)players.push({provider:name,label:name==='vidsrc'?'VidSrc':'SuperFlixAPI',url:link,availabilityVerified:false});
+     if(link)players.push({provider:name,label:name==='vidsrc'?'VidSrc':'WarezCDN',url:link,availabilityVerified:false});
    }
    return json({available:true,availabilityVerified:false,mode:'iframe',url:embedUrl,
      label:embed?.label||'EmbedMovies',provider:'embedmovies',players,external:true,customControls:false,

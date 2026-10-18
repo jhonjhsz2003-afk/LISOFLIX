@@ -5,61 +5,38 @@ import {runInNewContext} from 'node:vm';
 const read=f=>readFileSync(new URL('../'+f,import.meta.url),'utf8');
 const ui=read('public/app.js');
 const isolated=ui.slice(ui.indexOf('function validEmbedOption(p){'),ui.indexOf('function trailerModal(){'));
-function render(selected,genreIds=[16],superflixRoute='',originalLanguage='ja'){
+function render(selected){
  const sources=[
   {provider:'embedmovies',url:'https://myembed.biz/serie/1434/1/1',label:'EmbedMovies'},
-  {provider:'superflix',url:'https://superflixapi.fun/serie/1434/1/1',label:'SuperFlixAPI'},
-  {provider:'vidsrc',url:'https://vidsrc.mov/embed/tv/1434/1/1',label:'VidSrc'},
+  {provider:'warezcdn',url:'https://warezcdn.sbs/serie/1434/1/1',label:'WarezCDN'},
+  {provider:'vidsrc',url:'https://vidsrc.mov/embed/tv/1434/1/1',label:'VidSrc'}
  ];
- return runInNewContext(`${isolated}\nplayerModal();`,{URL,state:{detail:{title:'Teste',id:1434,genre_ids:genreIds,original_language:originalLanguage},playerEpisode:{season:1,episode:1},playerOptionIndex:selected,superflixRoute,playback:{available:true,mode:'iframe',players:sources}},esc:v=>String(v),icon:()=>'',title:d=>d.title,dVideo:()=>null,pics:()=>''});
+ return runInNewContext(`${isolated}\nplayerModal();`,{URL,state:{detail:{title:'Teste',id:1434},playerEpisode:{season:1,episode:1},playerOptionIndex:selected,playback:{available:true,mode:'iframe',players:sources}},esc:v=>String(v),icon:()=>'',title:d=>d.title,dVideo:()=>null,pics:()=>''});
 }
-test('as tres fontes continuam presentes e ativas na interface',()=>{
- const html=render(0);
- assert.match(html,/EmbedMovies/);assert.match(html,/SuperFlixAPI/);assert.match(html,/VidSrc/);
+test('tres fontes aparecem na ordem correta, sem Warez CDN injetar scripts',()=>{
+ const html=render(0);assert.match(html,/EmbedMovies/);assert.match(html,/WarezCDN/);assert.match(html,/VidSrc/);
  assert.match(html,/id="player-provider-select"/);assert.match(html,/data-action="switchplayer"/);
+ assert.doesNotMatch(html,/superflixapi|data-action="warezcdnroute"/i);
 });
-test('para animacao o SuperFlix tenta caminho /anime fornecido por seu painel, sem mudar as demais fontes',()=>{
+test('WarezCDN usa apenas rota de serie documentada, sem trocar por /anime',()=>{
  const html=render(1);
- assert.match(html,/src="https:\/\/superflixapi\.fun\/anime\/1434\/1\/1"/);
- assert.match(html,/data-action="superflixroute"/);
- assert.match(html,/Tentar série/);
- assert.match(render(1,[16],'serie'),/src="https:\/\/superflixapi\.fun\/serie\/1434\/1\/1"/);
- assert.doesNotMatch(render(1,[]),/src="https:\/\/superflixapi\.fun\/anime\/1434/);
-});
-test('anuncios via popup apenas no iframe SuperFlix, sem navegacao do topo por permissao explicita',()=>{
- const html=render(1);
- assert.match(html,/src="https:\/\/superflixapi\.fun\/anime\/1434\/1\/1"[^>]*sandbox="[^"]*allow-popups"/);
+ assert.match(html,/src="https:\/\/warezcdn\.sbs\/serie\/1434\/1\/1"/);
+ assert.doesNotMatch(html,/warezcdn\.sbs\/anime/);
+ assert.match(html,/src="https:\/\/warezcdn\.sbs[^" ]*"[^>]*sandbox="[^"]*allow-popups"/);
  assert.doesNotMatch(html,/allow-top-navigation/);
- const primary=render(0);
- assert.match(primary,/src="https:\/\/myembed\.biz\/serie\/1434\/1\/1"[^>]*sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"/);
- const third=render(2);
- assert.match(third,/src="https:\/\/vidsrc\.mov\/embed\/tv\/1434\/1\/1"/);
 });
-test('origem do provider permanece validada, inclusive para /anime',()=>{
- assert.equal(runInNewContext(`${isolated}\nvalidEmbedOption({provider:'superflix',url:'https://superflixapi.fun/anime/1434/1/1'})`,{URL}),true);
- for(const bad of ['https://superflixapi.fun.evil.invalid/anime/1434/1/1','https://superflixapi.fun/anime/1434/1/1?q=x','http://superflixapi.fun/anime/1434/1/1']){
-  assert.equal(runInNewContext(`${isolated}\nvalidEmbedOption({provider:'superflix',url:${JSON.stringify(bad)}})`,{URL}),false);
+test('EmbedMovies permanece isolado; VidSrc mantém excecao por host',()=>{
+ assert.match(render(0),/src="https:\/\/myembed\.biz\/serie\/1434\/1\/1"[^>]*sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"/);
+ assert.doesNotMatch(render(2),/src="https:\/\/vidsrc\.mov\/embed\/tv\/1434\/1\/1"[^>]*sandbox=/);
+});
+test('validacao bloqueia host falso, parametros e HTTP para WarezCDN',()=>{
+ for(const bad of ['https://warezcdn.sbs.evil.invalid/serie/1434/1/1','https://warezcdn.sbs/serie/1434/1/1?q=x','http://warezcdn.sbs/serie/1434/1/1','https://warezcdn.sbs/anime/1434/1/1']){
+  assert.equal(runInNewContext(`${isolated}\nvalidEmbedOption({provider:'warezcdn',url:${JSON.stringify(bad)}})`,{URL}),false,bad);
+ }
+ for(const url of ['https://warezcdn.sbs/filme/969681','https://warezcdn.sbs/serie/1434/1/1']){
+  assert.equal(runInNewContext(`${isolated}\nvalidEmbedOption({provider:'warezcdn',url:${JSON.stringify(url)}})`,{URL}),true,url);
  }
 });
-
-test('desenho ocidental nao recebe a rota anime usada para animacao japonesa',()=>{
- const western=render(1,[16],'','en');
- assert.match(western,/src="https:\/\/superflixapi\.fun\/serie\/1434\/1\/1"/);
- assert.doesNotMatch(western,/src="https:\/\/superflixapi\.fun\/anime\/1434/);
- assert.doesNotMatch(western,/data-action="superflixroute"/);
- const japanese=render(1,[16],'','ja');
- assert.match(japanese,/src="https:\/\/superflixapi\.fun\/anime\/1434\/1\/1"/);
-});
-test('ajuda so aparece quando solicitada e nunca remove opcao de trocar fonte',()=>{
- const html=render(1);
- assert.match(html,/data-action="playerhelp"/);
- assert.doesNotMatch(html,/class="player-help-panel"/);
- const sources=[{provider:'embedmovies',url:'https://myembed.biz/serie/1434/1/1'},
- {provider:'superflix',url:'https://superflixapi.fun/serie/1434/1/1'},
- {provider:'vidsrc',url:'https://vidsrc.mov/embed/tv/1434/1/1'}];
- const open=runInNewContext(`${isolated}
-playerModal();`,{URL,state:{detail:{title:'Teste',id:1434,original_language:'en'},playerEpisode:{season:1,episode:1},playerOptionIndex:1,playback:{available:true,mode:'iframe',players:sources},playerHelpOpen:true},esc:v=>String(v),icon:()=>'',title:d=>d.title,dVideo:()=>null,pics:()=>''});
- assert.match(open,/class="player-help-panel"/);
- assert.match(open,/data-action="switchplayer"/);
- assert.match(open,/404/);
+test('ajuda nao bloqueia video e mantem troca de fonte',()=>{
+ const html=render(1);assert.match(html,/data-action="playerhelp"/);assert.doesNotMatch(html,/class="player-help-panel"/);
 });

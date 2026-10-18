@@ -29,15 +29,15 @@ test('Domínios suspeitos nunca são liberados como iframe',()=>{
  assert.equal(runInNewContext(`${security}\nvalidEmbedOption({provider:'vidsrc',url:'https://vidsrc.mov/embed/movie/123?redirect=https://evil.test'})`,{URL}),false);
 });
 test('CSP não permite terceiros arbitrários e não contém SuperEmbed',()=>{
- assert.match(headers,/frame-src.*https:\/\/myembed\.biz.*https:\/\/vidsrc\.mov.*https:\/\/superflixapi\.fun/);
+ assert.match(headers,/frame-src.*https:\/\/myembed\.biz.*https:\/\/vidsrc\.mov.*https:\/\/warezcdn\.sbs/);
  assert.doesNotMatch(headers,/frame-src\s+\*/);assert.doesNotMatch(headers,/multiembed|superembed|streamingnow/i);
 });
 
-test('SuperFlix nao aceita hosts falsos, caminho invalido, consultas ou HTTP',()=>{
+test('WarezCDN nao aceita hosts falsos, caminho invalido, consultas ou HTTP',()=>{
  const safe={URL};
- assert.equal(runInNewContext(`${security}\nvalidEmbedOption({provider:'superflix',url:'https://superflixapi.fun/filme/969681'})`,safe),true);
- assert.equal(runInNewContext(`${security}\nvalidEmbedOption({provider:'superflix',url:'https://superflixapi.fun/serie/157336/1/8'})`,safe),true);
- for(const url of ['http://superflixapi.fun/filme/123', 'https://superflixapi.fun.evil.example/filme/123', 'https://superflixapi.fun/filme/123?next=https://evil.example', 'https://superflixapi.fun/serie/123/0/1']){
-  assert.equal(runInNewContext(`${security}\nvalidEmbedOption({provider:'superflix',url:${JSON.stringify(url)}})`,safe),false,url);
+ assert.equal(runInNewContext(`${security}\nvalidEmbedOption({provider:'warezcdn',url:'https://warezcdn.sbs/filme/969681'})`,safe),true);
+ assert.equal(runInNewContext(`${security}\nvalidEmbedOption({provider:'warezcdn',url:'https://warezcdn.sbs/serie/157336/1/8'})`,safe),true);
+ for(const url of ['http://warezcdn.sbs/filme/123', 'https://warezcdn.sbs.evil.example/filme/123', 'https://warezcdn.sbs/filme/123?next=https://evil.example', 'https://warezcdn.sbs/serie/123/0/1']){
+  assert.equal(runInNewContext(`${security}\nvalidEmbedOption({provider:'warezcdn',url:${JSON.stringify(url)}})`,safe),false,url);
  }
 });
