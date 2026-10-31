@@ -292,6 +292,7 @@ function syncVideoControls(video){const seek=$('#video-seek'),clockEl=$('#video-
 function validEmbedOption(p){if(!p||typeof p.url!=='string')return false;
  let url;try{url=new URL(p.url);}catch{return false;}
  if(url.protocol!=='https:'||url.search||url.hash||url.port||url.username||url.password)return false;
+ if(p.provider==='streambetter')return url.hostname==='streambetter.lat'&&(/^\/filme\/[1-9]\d*$/.test(url.pathname)||/^\/serie\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*$/.test(url.pathname));
  if(p.provider==='embedmovies')return url.hostname==='myembed.biz'&&/^\/(filme\/[1-9]\d*|serie\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
  if(p.provider==='vidsrc')return url.hostname==='vidsrc.mov'&&/^\/embed\/(movie\/[1-9]\d*|tv\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
  if(p.provider==='warezcdn')return url.hostname==='warezcdn.sbs'&&/^\/(filme\/[1-9]\d*|serie\/[1-9]\d*\/[1-9]\d*\/[1-9]\d*)$/.test(url.pathname);
@@ -304,17 +305,18 @@ function validEmbedOption(p){if(!p||typeof p.url!=='string')return false;
 // a partir da interacao do usuario. Desative a fonte se houver comportamento abusivo.
 // O site nao tenta contornar desafios de seguranca do fornecedor.
 function embedSandboxAttr(p){
+ // StreamBetter exige iframe sem sandbox; nao restringir o contexto do fornecedor.
+ if(p?.provider==='streambetter')return '';
  if(!validEmbedOption(p))return ' sandbox=""';
  return (p.provider==='vidsrc'||p.provider==='warezcdn')?'':' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"';
 }
 function embedPermissions(p){
- // O WarezCDN documenta estas permissoes para seu player incorporado.
- // Elas nao liberam novos dominios em frame-src.
+ if(p?.provider==='streambetter')return 'autoplay; encrypted-media; picture-in-picture; fullscreen';
  return p?.provider==='warezcdn'
   ?'autoplay *; encrypted-media *; picture-in-picture *; fullscreen *; clipboard-write *; accelerometer *; gyroscope *; web-share *'
   :'autoplay; encrypted-media; fullscreen; picture-in-picture';
 }
-function embedReferrerPolicy(p){return 'strict-origin-when-cross-origin';}
+function embedReferrerPolicy(p){return p?.provider==='streambetter'?'strict-origin-when-cross-origin':'strict-origin-when-cross-origin';}
 function playerModal(){
  const d=state.detail;if(!d)return '';
  const ep=state.playerEpisode, epName=ep?` · T${ep.season}E${ep.episode}`:'';
@@ -338,8 +340,8 @@ function playerModal(){
  source?.reason==='invalid-embed'?'Os dados do episódio ou do player externo estão inválidos.':
  'Não foi possível encontrar uma fonte de vídeo válida para este título.';
  return `<div class="veil player-veil"><div class="player-shell">
- <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2>${source?.available&&source.mode==='iframe'&&activeEmbed?`<div class="player-tools"><label class="player-select-label">Player <select id="player-provider-select" aria-label="Escolher entre os players disponíveis">${options.map((p,i)=>`<option value="${i}" ${chosenIndex===i?'selected':''}>${i===0?'1 · Principal':`${i+1} · Alternativa`} · ${esc(p.label||p.provider)}</option>`).join('')}</select></label>${options.length>1?`<button type="button" class="player-tool player-next-source" data-action="switchplayer" title="Se aparecer 404 ou o vídeo não abrir, tente outra fonte" aria-label="Tentar próximo player">${icon('refresh')} <span>Outra fonte</span></button>`:''}<button type="button" class="player-tool player-tool-icon" data-action="retryembed" title="Recarregar esta fonte" aria-label="Recarregar esta fonte">${icon('refresh')}</button><button type="button" class="player-tool player-help-trigger" data-action="playerhelp" aria-expanded="${!!state.playerHelpOpen}" title="Se o player não abrir" aria-label="Ajuda para reprodução">Ajuda</button></div>`:''}<span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
- ${state.playerHelpOpen&&source?.available&&source.mode==='iframe'?`<aside class="player-help-panel" role="status"><button type="button" class="player-help-close" data-action="playerhelp" aria-label="Fechar ajuda">×</button><strong>O vídeo não abriu?</strong><p>Alguns fornecedores mostram verificação de segurança ou erro 404. Isso depende do serviço externo: o LISOFLIX não consegue confirmar a reprodução dentro do iframe.</p><button type="button" class="player-help-next" data-action="switchplayer">${icon('refresh')} Tentar outra fonte</button><small>Fornecedor único: StreamBetter. O WarezCDN exige domínio verificado e aprovado. Sua conta e seu histórico não são alterados.</small></aside>`:''}
+ <div class="player-toolbar"><button class="return" data-action="backdetail" aria-label="Voltar aos detalhes">${icon('left')}</button><h2>${esc(title(d))}${epName}</h2>${source?.available&&source.mode==='iframe'&&activeEmbed?`<div class="player-tools">${options.length>1?`<label class="player-select-label">Player <select id="player-provider-select" aria-label="Escolher entre os players disponíveis">${options.map((p,i)=>`<option value="${i}" ${chosenIndex===i?'selected':''}>${i===0?'1 · Principal':`${i+1} · Alternativa`} · ${esc(p.label||p.provider)}</option>`).join('')}</select></label>`:`<span class="player-select-label">StreamBetter</span>`}${options.length>1?`<button type="button" class="player-tool player-next-source" data-action="switchplayer" title="Se aparecer 404 ou o vídeo não abrir, tente outra fonte" aria-label="Tentar próximo player">${icon('refresh')} <span>Outra fonte</span></button>`:''}<button type="button" class="player-tool player-tool-icon" data-action="retryembed" title="Recarregar esta fonte" aria-label="Recarregar esta fonte">${icon('refresh')}</button><button type="button" class="player-tool player-help-trigger" data-action="playerhelp" aria-expanded="${!!state.playerHelpOpen}" title="Se o player não abrir" aria-label="Ajuda para reprodução">Ajuda</button></div>`:''}<span class="player-brand"><img src="/brand/lisoflix-emblem.webp" width="34" height="34" alt=""> LISOFLIX</span></div>
+ ${state.playerHelpOpen&&source?.available&&source.mode==='iframe'?`<aside class="player-help-panel" role="status"><button type="button" class="player-help-close" data-action="playerhelp" aria-label="Fechar ajuda">×</button><strong>O vídeo não abriu?</strong><p>Alguns fornecedores mostram verificação de segurança ou erro 404. Isso depende do serviço externo: o LISOFLIX não consegue confirmar a reprodução dentro do iframe.</p><button type="button" class="player-help-next" data-action="switchplayer">${icon('refresh')} Tentar outra fonte</button><small>Fornecedor único: StreamBetter. A reprodução depende de existir uma fonte cadastrada para este título. Sua conta e seu histórico não são alterados.</small></aside>`:''}
  <div class="player-viewport branded-video">
  ${!source||source.loading?`<div class="player-message">${icon('refresh')}<h3>Buscando uma fonte de vídeo disponível…</h3><p>Aguarde enquanto verificamos a disponibilidade deste título.</p></div>`:
  source.available&&source.mode==='iframe'&&activeEmbed?`<div class="embed-video-wrap"><iframe class="embed-video-frame" src="${esc(iframePlayer.url)}" title="Player ${chosenIndex+1} de ${esc(title(d))}" allow="${esc(embedPermissions(activeEmbed))}"${embedSandboxAttr(activeEmbed)} referrerpolicy="${embedReferrerPolicy(activeEmbed)}" allowfullscreen loading="eager" fetchpriority="high"></iframe></div>`:
