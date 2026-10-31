@@ -12,3 +12,9 @@
 - Integração desativada por padrão até o domínio ser verificado e aprovado no painel.
 - EmbedMovies e VidSrc preservados; seletor e botão Outra fonte mantidos.
 - Sem migração D1; backup e checagem de conta mantidos no deploy.
+
+# Manutencao do pacote
+
+- Removidos testes obsoletos e arquivo TXT residual do SuperFlixAPI, que nao integra mais o player.
+- Consolidada a publicacao GitHub em `PUBLICAR-GITHUB.ps1`; removidos scripts PowerShell duplicados/antigos.
+- Nenhuma tentativa de contornar verificacoes de seguranca de provedores externos.

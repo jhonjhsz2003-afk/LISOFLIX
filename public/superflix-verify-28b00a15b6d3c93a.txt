@@ -1,2 +1,0 @@
-domain=lisoflix.jjszjhon.workers.dev
-token=tey8jtbtzmyujassfl9amedllewchakc

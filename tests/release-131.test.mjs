@@ -21,7 +21,13 @@ test('script de deploy preserva dados e impede backup em repositorio publico',()
  assert.match(ps,/LOCALAPPDATA/);assert.match(ps,/\'d1\',\'export\'/);
  assert.doesNotMatch(ps,/\'d1\',\'execute\'/);
  assert.match(ps,/database_id/);
- assert.match(read('04-ATUALIZAR-REPOSITORIO-EXTRAIDO.ps1'),/'backups'/);
+ const github=read('PUBLICAR-GITHUB.ps1');
+ assert.match(github,/robocopy\.exe/);
+ assert.match(github,/\/MIR/);
+ assert.match(github,/backups/);
+ assert.match(github,/\.dev\.vars/);
+ assert.match(github,/push/);
+ assert.doesNotMatch(github,/--force/);
 });
 test('o player preserva progresso salvo ao abrir fonte autorizada',()=>{
  const ui=read('public/app.js');

@@ -39,9 +39,16 @@ O exemplo oficial do WarezCDN não usa atributo `sandbox`. Nesta versão, apenas
 Extraia o ZIP e abra PowerShell na pasta LISOFLIX:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\10-PUBLICAR-CLOUDFLARE.ps1"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\09-ATUALIZAR-GITHUB.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\PUBLICAR-GITHUB.ps1"
 ```
+
+O `PUBLICAR-GITHUB.ps1` sincroniza o projeto completo com o repositorio GitHub,
+remove arquivos antigos do destino, preserva `.git` e nao envia credenciais,
+bancos locais ou backups. Ele publica somente no GitHub.
+
+Para publicar o Worker na Cloudflare, depois de conferir a conta e o D1 configurado,
+execute separadamente `10-PUBLICAR-CLOUDFLARE.ps1`. Esse passo nao e necessario
+para apenas enviar os arquivos ao GitHub.
 
 O script de Cloudflare verifica a conta e o UUID do D1, exige confirmação, salva backup fora do GitHub, executa testes e publica sem aplicar `schema.sql` ou migrações. A ordem acima publica na Cloudflare antes do GitHub.
 
