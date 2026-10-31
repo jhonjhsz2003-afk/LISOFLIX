@@ -379,3 +379,31 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .player-shell .embed-video-wrap{width:100%;height:100%;max-width:none;min-height:0;aspect-ratio:auto;margin:0;border-radius:0}
 .player-shell .embed-video-frame{width:100%;height:100%;min-height:0;aspect-ratio:auto}
 @media(max-width:700px){.live-channel-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.live-card-image{height:116px}.live-card-info{min-height:72px;padding:11px}.live-card-info strong{font-size:12px}.live-player-head{height:58px;flex-basis:58px}.live-player-brand{font-size:18px}.live-player-brand img{width:32px;height:32px}.player-toolbar-minimal{height:58px;min-height:58px;flex-basis:58px}.player-toolbar-minimal .player-brand{font-size:18px}.player-toolbar-minimal .player-brand img{width:32px;height:32px}.player-viewport.branded-video{height:calc(100dvh - 58px)}}
+
+/* LISOFLIX TV redesign — category-first layout, larger channel art */
+.live-catalog-page{padding-bottom:64px!important}
+.live-category-nav{position:sticky;top:62px;z-index:8;background:#09090c;padding:12px 2px 16px;margin:0 0 18px;box-shadow:0 12px 22px #0005}
+.live-category-section{margin:28px 0 42px}
+.live-category-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 15px}
+.live-category-heading h2{margin:0;font-size:clamp(19px,2vw,25px);font-weight:900;letter-spacing:-.4px;color:#fff}
+.live-category-heading span{color:#98a5bf;font-size:12px;font-weight:700}
+.live-channel-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))!important;gap:18px!important}
+.live-channel-card{min-height:220px!important;border-radius:16px!important}
+.live-card-image{height:156px!important;padding:15px!important}
+.live-card-image img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important}
+.live-card-fallback{font-size:clamp(18px,1.7vw,27px)!important}
+.live-card-info{min-height:72px!important;padding:13px 15px!important}
+.live-card-info strong{font-size:14px!important}
+.live-player-screen{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;overflow:hidden!important}
+.live-player-head{height:58px!important;flex:0 0 58px!important}
+.live-player-stage{height:calc(100dvh - 58px)!important;min-height:0!important;flex:1 1 auto!important;width:100%!important}
+.live-player-frame{width:100%!important;height:100%!important;min-width:100%!important;min-height:100%!important;border:0!important}
+.player-veil{position:fixed!important;inset:0!important;padding:0!important}
+.player-shell{width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;border-radius:0!important}
+.player-toolbar-minimal{height:58px!important;min-height:58px!important;flex:0 0 58px!important}
+.player-viewport.branded-video{height:calc(100dvh - 58px)!important;min-height:0!important}
+.player-shell .embed-video-wrap{width:100%!important;height:100%!important;max-width:none!important;min-height:0!important;aspect-ratio:auto!important;margin:0!important;border-radius:0!important}
+.player-shell .embed-video-frame{width:100%!important;height:100%!important;min-height:0!important;aspect-ratio:auto!important}
+@media(min-width:1500px){.live-channel-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important}}
+@media(max-width:900px){.live-channel-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}.live-card-image{height:132px!important}}
+@media(max-width:600px){.live-category-nav{top:54px}.live-channel-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}.live-card-image{height:112px!important}.live-card-info{padding:10px!important}.live-card-info strong{font-size:12px!important}.live-player-head{height:54px!important;flex-basis:54px!important}.live-player-stage{height:calc(100dvh - 54px)!important}.player-toolbar-minimal{height:54px!important;min-height:54px!important;flex-basis:54px!important}.player-viewport.branded-video{height:calc(100dvh - 54px)!important}}
