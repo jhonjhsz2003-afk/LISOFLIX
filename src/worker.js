@@ -1,7 +1,7 @@
 import { DEMO } from '../public/demo.js';
 
 const ORIGIN_TMDB = 'https://api.themoviedb.org/3';
-const APP_VERSION = '1.7.7';
+const APP_VERSION = '1.8.0';
 const DAY = 86400;
 const SESSION_AGE = DAY * 30;
 const schemaMemo=new WeakMap();
@@ -212,7 +212,7 @@ async function handle(req,env) {
   if(origin&&origin!==url.origin)return fail('Origem não autorizada.',403);
   if(!req.headers.get('Content-Type')?.startsWith('application/json'))return fail('Use application/json.',415);
  }
- if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:iframeFeatureEnabled(env),videoMode:'native-plus-approved-embeds',version:APP_VERSION,automaticEmbeds:automaticEmbedsEnabled(env),secondaryPlayer:fallbackProviders(env)[0]||null,fallbackPlayers:fallbackProviders(env)});
+ if(path==='/api/config'&&method==='GET')return json({tmdb:tmdbReady(env),embeds:iframeFeatureEnabled(env),videoMode:'streambetter-embed-only',version:APP_VERSION,automaticEmbeds:automaticEmbedsEnabled(env),secondaryPlayer:fallbackProviders(env)[0]||null,fallbackPlayers:fallbackProviders(env)});
  // Uma verificacao publica que nao mostra credenciais, emails, IDs de conta ou URLs privadas.
  if(path==='/api/system-check'&&method==='GET'){
   const db=await databaseHealth(env);let catalogAuth='not-configured';
@@ -229,7 +229,7 @@ async function handle(req,env) {
     activeEmbeds=embeds?.total??0;
    } catch(e) { console.warn('Playback counts unavailable', e?.message); }
   }
-  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'native-plus-approved-embeds',activeSources,activeEmbeds,externalEmbedsSupported:true,externalEmbedsEnabled:iframeFeatureEnabled(env),automaticEmbedsEnabled:automaticEmbedsEnabled(env),secondaryPlayerEnabled:fallbackProviders(env).length>0,fallbackPlayers:fallbackProviders(env)});
+  return json({version:APP_VERSION,database:db.database,schemaReady:db.schemaReady,missingTables:db.missing,catalogAuth,playerMode:'streambetter-embed-only',activeSources,activeEmbeds,externalEmbedsSupported:true,externalEmbedsEnabled:iframeFeatureEnabled(env),automaticEmbedsEnabled:automaticEmbedsEnabled(env),secondaryPlayerEnabled:fallbackProviders(env).length>0,fallbackPlayers:fallbackProviders(env)});
  }
  if(path==='/api/tmdb/check'&&method==='GET'){
   if(!tmdbReady(env))return json({configured:false,authorized:false,error:'Secret de catálogo não configurado.'},503);
@@ -283,53 +283,23 @@ async function handle(req,env) {
   return json(await tmdb(env,`/collection/${id}`,{},1800));
  }
  if(path==='/api/playback'&&method==='GET') {
+  // Único fornecedor de players: StreamBetter. TMDB continua sendo usado
+  // apenas para metadados do catálogo, nunca como fonte de reprodução.
   const type=url.searchParams.get('type'),id=url.searchParams.get('id');
   if(!safeMedia(type,id))return fail('Título inválido.');
-  const status=await databaseHealth(env);
-  if(!status.schemaReady)return json({available:false,reason:'catalog-only'});
-  // Números de episódios precisam ser explícitos e válidos, como no AnimeDragon.
   const rawSeason=url.searchParams.get('season')||'0',rawEpisode=url.searchParams.get('episode')||'0';
   if(!/^(0|[1-9]\d{0,2})$/.test(rawSeason)||!/^(0|[1-9]\d{0,3})$/.test(rawEpisode))return fail('Temporada ou episódio inválido.');
   const season=Number(rawSeason),episode=Number(rawEpisode);
   if(season>100||episode>2000||(type==='tv'&&(!season||!episode))||(type==='movie'&&(season||episode)))return fail('Temporada ou episódio inválido.');
-  const entry=await env.DB.prepare('SELECT url,mime,label FROM playback_sources WHERE media_type=? AND media_id=? AND season=? AND episode=? AND enabled=1 LIMIT 1').bind(type,+id,season,episode).first();
-  if(!entry){
-   // Não inferimos permissão de exibição a partir do TMDB: fonte precisa ser
-   // explicitamente cadastrada para cada filme ou episódio no D1.
-   if(!iframeFeatureEnabled(env))return json({available:false,reason:'no-source-configured'});
-   // Primeiro respeita a regra do episódio exato (inclusive disabled=0).
-   // Para séries autorizadas, o registro (season=0,episode=0) cobre os episódios
-   // sem exigir uma linha D1 para cada episódio; filmes nunca usam essa regra.
-   const embed=await env.DB.prepare(`SELECT provider,mode,label,enabled,season,episode FROM playback_embeds
-      WHERE media_type=? AND media_id=? AND ((season=? AND episode=?) OR (?='tv' AND season=0 AND episode=0))
-      ORDER BY CASE WHEN season=? AND episode=? THEN 0 ELSE 1 END LIMIT 1`)
-      .bind(type,+id,season,episode,type,season,episode).first();
-   // Regras exatas ou gerais do D1 têm prioridade sobre a descoberta automática.
-   // Um registro explicitamente desativado sempre bloqueia o conteúdo.
-   if(embed && (embed.enabled!==1||embed.provider!=='embedmovies'))
-     return json({available:false,reason:'source-disabled'});
-   if(!embed&&!automaticEmbedsEnabled(env))
-     return json({available:false,reason:'no-source-configured'});
-   const embedUrl=licensedEmbedUrl(type,+id,season,episode,embed?.mode||'standard');
-   if(!embedUrl)return json({available:false,reason:'invalid-embed'});
-   // A geração da URL não verifica o catálogo ou os direitos do provedor.
-   const players=[{provider:'embedmovies',label:'EmbedMovies',url:embedUrl,availabilityVerified:false}];
-   // Troca manual: iframes de outras origens não expõem se há fontes ou anúncios.
-   for(const name of fallbackProviders(env)) {
-     const link=providerUrl(name,type,+id,season,episode);
-     if(link)players.push({provider:name,label:name==='vidsrc'?'VidSrc':'WarezCDN',url:link,availabilityVerified:false});
-   }
-   return json({available:true,availabilityVerified:false,mode:'iframe',url:embedUrl,
-     label:embed?.label||'EmbedMovies',provider:'embedmovies',players,external:true,customControls:false,
-     scope:embed?(embed.season===0&&embed.episode===0&&type==='tv'?'series':'episode'):'provider-auto',
-     notice:'O iframe foi preparado. Disponibilidade e permissões de exibição são responsabilidade dos provedores.'});
-  }
-  const permitted=(env.MEDIA_ALLOWED_HOSTS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
-  let u;try{u=new URL(entry.url);}catch{return json({available:false,reason:'invalid-url'});}
-  if(u.protocol!=='https:'||!permitted.includes(u.hostname.toLowerCase()))return json({available:false,reason:'source-not-allowed'});
-  if(!['video/mp4','video/webm','application/vnd.apple.mpegurl'].includes(entry.mime))return json({available:false,reason:'invalid-format'});
-  const auth=await session(req,env);const progress=auth?.profile_id?await env.DB.prepare('SELECT position_seconds,duration_seconds FROM playback_progress WHERE profile_id=? AND media_type=? AND media_id=? AND season=? AND episode=?').bind(auth.profile_id,type,+id,season,episode).first():null;
-  return json({available:true,mode:'native',url:u.toString(),mime:entry.mime,label:entry.label||'Vídeo',position:progress?.position_seconds||0});
+  const embedUrl=type==='movie'
+    ?`https://streambetter.lat/filme/${+id}`
+    :`https://streambetter.lat/serie/${+id}/${season}/${episode}`;
+  const auth=await session(req,env);
+  const progress=auth?.profile_id?await env.DB.prepare('SELECT position_seconds,duration_seconds FROM playback_progress WHERE profile_id=? AND media_type=? AND media_id=? AND season=? AND episode=?').bind(auth.profile_id,type,+id,season,episode).first():null;
+  return json({available:true,availabilityVerified:false,mode:'iframe',url:embedUrl,
+    label:'StreamBetter',provider:'streambetter',players:[{provider:'streambetter',label:'StreamBetter',url:embedUrl,availabilityVerified:false}],
+    external:true,customControls:false,position:progress?.position_seconds||0,
+    notice:'Player oficial StreamBetter. A reprodução depende de o conteúdo ter fonte disponível no fornecedor.'});
  }
  if(path==='/api/auth/register'&&method==='POST'){
   const databaseError=await requireSchema(env);if(databaseError)return databaseError;
